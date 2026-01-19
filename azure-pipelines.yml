@@ -1,0 +1,104 @@
+trigger:
+- master
+
+name: 0.0.1
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  BQC.ForceNewBaseline: true
+
+stages:
+- stage: Build
+  displayName: Build
+  jobs:
+  - job: Build
+    displayName: Build and Test
+
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET 10'
+      inputs:
+        version: 10.0.x
+        includePreviewVersions: false
+
+    - task: NuGetToolInstaller@1
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore nuget packages'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+        feedsToUse: 'select'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '-c Release --no-restore /p:Version=$(Build.BuildNumber)'
+        versioningScheme: 'byBuildNumber'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Test'
+      inputs:
+        command: 'test'
+        projects: '**/*.Tests.csproj'
+        arguments: '--collect "Code coverage" --configuration $(buildConfiguration) --filter "Category!=Database"'
+
+    # - task: BuildQualityChecks@8
+    #   displayName: 'Build Quality Checks'
+    #   inputs:
+    #     checkWarnings: true
+    #     warningFailOption: 'build'
+    #     allowWarningVariance: true
+    #     warningVariance: '5'
+    #     checkCoverage: true
+    #     coverageFailOption: 'build'
+    #     coverageType: 'blocks'
+    #     allowCoverageVariance: true
+    #     coverageVariance: '5'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Pack Tharga.Communication'
+      inputs:
+        command: 'pack'
+        packagesToPack: '**/Tharga.Communication.csproj'
+        versioningScheme: 'byBuildNumber'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+
+- stage: Release
+  displayName: Release
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'master'))
+  jobs:
+  - job: Release
+    displayName: Release
+
+    steps:
+    - download: current
+      artifact: drop
+    - checkout: self
+      persistCredentials: true
+
+    - task: NuGetCommand@2
+      displayName: 'Push .nupkg to NuGet.org (with symbols)'
+      inputs:
+        command: 'push'
+        packagesToPush: '$(Pipeline.Workspace)/**/*.symbols.nupkg'
+        nuGetFeedType: 'external'
+        publishFeedCredentials: 'Nuget.org'
+
+    - script: |
+         git tag $(Build.BuildNumber)
+         git push origin $(Build.BuildNumber)
+      workingDirectory: $(Build.SourcesDirectory)
+      displayName: Tag
