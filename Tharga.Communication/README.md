@@ -1,0 +1,3 @@
+﻿# Tharga Communication
+
+SignalR 
