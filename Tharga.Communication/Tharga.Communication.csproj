@@ -6,11 +6,11 @@
     <Version>1.0.0</Version>
     <Authors>Daniel Bohlin</Authors>
     <Company>Thargelion AB</Company>
-    <Product>Tharga Toolkit</Product>
+    <Product>Tharga Communication</Product>
     <Description>Tools for collections, DateTime, Luhn, Compare and more.</Description>
     <PackageIconUrl>http://thargelion.se/wp-content/uploads/2019/11/Thargelion-White-Icon-150.png</PackageIconUrl>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
-    <PackageProjectUrl>https://github.com/Tharga/Toolkit</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/Tharga/Communication</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSymbols>true</IncludeSymbols>
     <IncludeSource>true</IncludeSource>
@@ -34,11 +34,10 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.1" />
-    <PackageReference Include="Quilt4Net.Toolkit" Version="0.4.7" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.2" />
     <PackageReference Include="Tharga.Runtime" Version="0.1.4" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.102">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
