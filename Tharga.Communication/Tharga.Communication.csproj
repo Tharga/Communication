@@ -36,7 +36,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.2" />
-    <PackageReference Include="Tharga.Runtime" Version="0.1.4" />
+    <PackageReference Include="Tharga.Runtime" Version="0.1.6" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.102">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
