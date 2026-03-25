@@ -1,7 +1,15 @@
 ﻿namespace Tharga.Communication.Server.Communication;
 
+/// <summary>
+/// Represents the result of a request-response message, containing either a value or failure information.
+/// </summary>
+/// <typeparam name="T">The response value type.</typeparam>
 public record Response<T>
 {
+    /// <summary>
+    /// Creates a successful response with the given value.
+    /// </summary>
+    /// <param name="value">The response value.</param>
     public Response(T value)
     {
         Value = value;

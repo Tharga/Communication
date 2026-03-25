@@ -5,4 +5,175 @@
 ![Nuget](https://img.shields.io/nuget/dt/Tharga.Communication)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Signalar message handler for client and server.
+A SignalR-based communication framework for .NET with built-in message handler patterns for request-response and fire-and-forget messaging between clients and servers.
+
+## Features
+
+- **Fire-and-forget messaging** - Send one-way messages from client to server or server to client(s)
+- **Request-response messaging** - Send a request and await a typed response with configurable timeout
+- **Automatic handler discovery** - Message handlers are discovered and registered via dependency injection
+- **Client connection tracking** - Track connected clients with metadata (machine name, app type, version)
+- **Automatic reconnection** - Configurable reconnect delays for client connections
+- **Extensible storage** - Abstract repository pattern for client state with an in-memory default
+
+## Installation
+
+```
+dotnet add package Tharga.Communication
+```
+
+## Quick start
+
+### Server setup
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.AddThargaCommunicationServer(options =>
+{
+    options.RegisterClientStateService<MyClientStateService>();
+    options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+});
+
+var app = builder.Build();
+app.UseThargaCommunicationServer();
+app.Run();
+```
+
+### Client setup
+
+Add the configuration section to `appsettings.json`:
+
+```json
+{
+  "Tharga": {
+    "Communication": {
+      "ServerAddress": "https://localhost:5001"
+    }
+  }
+}
+```
+
+Register the client services:
+
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+builder.AddThargaCommunicationClient();
+```
+
+### Creating a message handler (fire-and-forget)
+
+```csharp
+public record MyNotification(string Text);
+
+public class MyNotificationHandler : PostMessageHandlerBase<MyNotification>
+{
+    public override Task Handle(MyNotification message)
+    {
+        Console.WriteLine(message.Text);
+        return Task.CompletedTask;
+    }
+}
+```
+
+Register the handler in DI:
+
+```csharp
+builder.Services.AddTransient<PostMessageHandlerBase<MyNotification>, MyNotificationHandler>();
+```
+
+### Creating a message handler (request-response)
+
+```csharp
+public record PingRequest(string Message);
+public record PingResponse(string Reply);
+
+public class PingHandler : SendMessageHandlerBase<PingRequest, PingResponse>
+{
+    public override Task<PingResponse> Handle(PingRequest message)
+    {
+        return Task.FromResult(new PingResponse($"Pong: {message.Message}"));
+    }
+}
+```
+
+### Sending messages
+
+From the client:
+
+```csharp
+public class MyService(IClientCommunication client)
+{
+    public async Task NotifyServer()
+    {
+        await client.PostAsync(new MyNotification("Hello from client"));
+    }
+}
+```
+
+From the server:
+
+```csharp
+public class MyServerService(IServerCommunication server)
+{
+    public async Task NotifyClient(string connectionId)
+    {
+        await server.PostAsync(connectionId, new MyNotification("Hello from server"));
+    }
+
+    public async Task NotifyAll()
+    {
+        await server.PostToAllAsync(new MyNotification("Broadcast message"));
+    }
+
+    public async Task<PingResponse> PingClient(string connectionId)
+    {
+        var response = await server.SendMessageAsync<PingRequest, PingResponse>(
+            connectionId, new PingRequest("Ping"));
+        return response.Value;
+    }
+}
+```
+
+### Implementing a client state service
+
+```csharp
+public class MyClientStateService : ClientStateServiceBase<ClientConnectionInfo>
+{
+    public MyClientStateService(IServiceProvider sp, IOptions<CommunicationOptions> options)
+        : base(sp, options) { }
+
+    protected override ClientConnectionInfo Build(IClientConnectionInfo info) =>
+        new()
+        {
+            Instance = info.Instance,
+            ConnectionId = info.ConnectionId,
+            Machine = info.Machine,
+            Type = info.Type,
+            Version = info.Version,
+            IsConnected = info.IsConnected,
+            ConnectTime = info.ConnectTime
+        };
+
+    protected override ClientConnectionInfo BuildDisconnect(ClientConnectionInfo info, DateTime disconnectTime) =>
+        info with { IsConnected = false, DisconnectTime = disconnectTime };
+}
+```
+
+## Configuration
+
+### Client options
+
+| Property | Description | Default |
+|---|---|---|
+| `ServerAddress` | The server URL to connect to | *(required)* |
+| `Pattern` | The hub endpoint pattern | `"hub"` |
+| `ReconnectDelays` | Delays between reconnection attempts | `[0s, 2s, 10s, 30s]` |
+
+### Server options
+
+The server requires registering a `ClientStateServiceBase` implementation and a `ClientRepositoryBase` implementation via the options callback. Use `MemoryClientRepository<T>` for an in-memory default.
+
+## License
+
+[MIT](LICENSE)
