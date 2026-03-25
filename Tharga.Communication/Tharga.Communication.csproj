@@ -7,7 +7,7 @@
     <Authors>Daniel Bohlin</Authors>
     <Company>Thargelion AB</Company>
     <Product>Tharga Communication</Product>
-    <Description>Tools for collections, DateTime, Luhn, Compare and more.</Description>
+    <Description>SignalR-based client and server communication framework with a built-in message handler pattern for request-response and fire-and-forget messaging.</Description>
     <PackageIconUrl>http://thargelion.se/wp-content/uploads/2019/11/Thargelion-White-Icon-150.png</PackageIconUrl>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageProjectUrl>https://github.com/Tharga/Communication</PackageProjectUrl>

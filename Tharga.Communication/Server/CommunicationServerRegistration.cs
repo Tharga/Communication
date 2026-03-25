@@ -8,8 +8,19 @@ using Tharga.Communication.Server.Communication;
 
 namespace Tharga.Communication.Server;
 
+/// <summary>
+/// Extension methods for registering Tharga.Communication server services.
+/// </summary>
 public static class CommunicationServerRegistration
 {
+    /// <summary>
+    /// Registers all required server-side communication services including SignalR hub,
+    /// message handlers, client state tracking, and the <see cref="Communication.IServerCommunication"/> service.
+    /// You must call <see cref="CommunicationOptions.RegisterClientStateService{TService}"/> and
+    /// <see cref="CommunicationOptions.RegisterClientRepository{TService,TEntity}"/> in the options callback.
+    /// </summary>
+    /// <param name="builder">The web application builder.</param>
+    /// <param name="options">Callback to configure server options and register required services.</param>
     public static void AddThargaCommunicationServer(this WebApplicationBuilder builder, Action<CommunicationOptions> options = default)
     {
         var o = new CommunicationOptions
@@ -45,6 +56,11 @@ public static class CommunicationServerRegistration
         builder.Services.AddSingleton<IHandlerTypeService>(_ => new HandlerTypeService(handlerTypes));
     }
 
+    /// <summary>
+    /// Maps the SignalR hub endpoint for Tharga.Communication.
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <param name="pattern">The hub URL pattern. Defaults to <c>"hub"</c>.</param>
     public static void UseThargaCommunicationServer(this WebApplication app, string pattern = default)
     {
         pattern ??= Constants.DefaultPattern;

@@ -8,8 +8,18 @@ using Tharga.Communication.MessageHandler;
 
 namespace Tharga.Communication.Client;
 
+/// <summary>
+/// Extension methods for registering Tharga.Communication client services.
+/// </summary>
 public static class CommunicationClientRegistration
 {
+    /// <summary>
+    /// Registers all required client-side communication services including SignalR connection,
+    /// message handlers, and the <see cref="Communication.IClientCommunication"/> service.
+    /// Configuration is read from the <c>Tharga:Communication</c> configuration section.
+    /// </summary>
+    /// <param name="builder">The host application builder.</param>
+    /// <param name="options">Optional callback to override configuration values.</param>
     public static void AddThargaCommunicationClient(this IHostApplicationBuilder builder, Action<CommunicationOptions> options = default)
     {
         var configuration = builder.Services.BuildServiceProvider().GetService<IConfiguration>();
