@@ -7,7 +7,7 @@
     <Authors>Daniel Bohlin</Authors>
     <Company>Thargelion AB</Company>
     <Product>Tharga Communication</Product>
-    <Description>Tools for collections, DateTime, Luhn, Compare and more.</Description>
+    <Description>SignalR-based client and server communication framework with a built-in message handler pattern for request-response and fire-and-forget messaging.</Description>
     <PackageIconUrl>http://thargelion.se/wp-content/uploads/2019/11/Thargelion-White-Icon-150.png</PackageIconUrl>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageProjectUrl>https://github.com/Tharga/Communication</PackageProjectUrl>
@@ -34,10 +34,10 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.2" />
-    <PackageReference Include="Tharga.Runtime" Version="0.1.6" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.102">
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.5" />
+    <PackageReference Include="Tharga.Runtime" Version="0.1.7" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.201">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

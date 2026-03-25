@@ -2,6 +2,11 @@
 
 namespace Tharga.Communication.Server;
 
+/// <summary>
+/// In-memory implementation of <see cref="ClientRepositoryBase{T}"/> using a <see cref="ConcurrentDictionary{TKey,TValue}"/>.
+/// Suitable for development and single-instance deployments.
+/// </summary>
+/// <typeparam name="T">The client connection info type.</typeparam>
 public class MemoryClientRepository<T> : ClientRepositoryBase<T>
     where T : IClientConnectionInfo
 {
