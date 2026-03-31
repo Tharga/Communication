@@ -1,5 +1,19 @@
 ## Pending
 
+### Null-safe config binding in AddThargaCommunicationClient
+- **From:** Tharga.MongoDB (`c:\dev\tharga\Toolkit\MongoDB`)
+- **Date:** 2026-03-31
+- **Priority:** High
+- **Description:** `CommunicationClientRegistration.AddThargaCommunicationClient` calls `configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>()` which returns `null` when the config section is missing. Line 30 then accesses `value.ServerAddress`, causing a NullReferenceException. The options callback should be able to provide the server address without requiring the config section to exist. Suggested fix: `var value = configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>() ?? new CommunicationOptions();`
+- **Status:** Pending
+
+### API key authentication for SignalR connections
+- **From:** Tharga.MongoDB (`c:\dev\tharga\Toolkit\MongoDB`)
+- **Date:** 2026-03-31
+- **Priority:** High
+- **Description:** Tharga.MongoDB needs to secure the SignalR hub used for distributed monitoring. The authentication should be built into Tharga.Communication itself so consumers don't need custom middleware. Suggested approach: (1) Client-side: allow configuring an API key via `CommunicationOptions` (code or `appsettings.json` / User Secrets), sent as a custom header during SignalR negotiation. (2) Server-side: accept a primary and secondary API key via configuration. Validate the header on connection — reject with 401 if invalid. Accept either key for zero-downtime key rotation. (3) When no keys are configured on the server, accept all connections (backwards compatible). Configuration should work via `appsettings.json`, Manage User Secrets, environment variables, or code options — no consumer-side middleware needed.
+- **Status:** Pending
+
 ### Subscription-based messaging support
 - **From:** Tharga.MongoDB (`c:\dev\tharga\Toolkit\MongoDB`)
 - **Date:** 2026-03-31
