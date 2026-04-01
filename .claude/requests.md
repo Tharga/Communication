@@ -5,7 +5,7 @@
 - **Date:** 2026-03-31
 - **Priority:** High
 - **Description:** `CommunicationClientRegistration.AddThargaCommunicationClient` calls `configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>()` which returns `null` when the config section is missing. Line 30 then accesses `value.ServerAddress`, causing a NullReferenceException. The options callback should be able to provide the server address without requiring the config section to exist. Suggested fix: `var value = configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>() ?? new CommunicationOptions();`
-- **Status:** Pending
+- **Status:** Done (2026-03-31) — Null-coalesce applied, 5 tests added. Notification sent to Tharga.MongoDB.
 
 ### API key authentication for SignalR connections
 - **From:** Tharga.MongoDB (`c:\dev\tharga\Toolkit\MongoDB`)
