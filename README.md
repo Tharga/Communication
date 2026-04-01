@@ -169,10 +169,58 @@ public class MyClientStateService : ClientStateServiceBase<ClientConnectionInfo>
 | `ServerAddress` | The server URL to connect to | *(required)* |
 | `Pattern` | The hub endpoint pattern | `"hub"` |
 | `ReconnectDelays` | Delays between reconnection attempts | `[0s, 2s, 10s, 30s]` |
+| `ApiKey` | API key sent to the server for authentication | *(none)* |
 
 ### Server options
 
 The server requires registering a `ClientStateServiceBase` implementation and a `ClientRepositoryBase` implementation via the options callback. Use `MemoryClientRepository<T>` for an in-memory default.
+
+| Property | Description | Default |
+|---|---|---|
+| `PrimaryApiKey` | Primary API key for client authentication | *(none)* |
+| `SecondaryApiKey` | Secondary API key for zero-downtime key rotation | *(none)* |
+
+When no API keys are configured on the server, all connections are accepted (backwards compatible). When one or both keys are set, clients must provide a matching key via the `X-Api-Key` header.
+
+## Authentication
+
+To secure the SignalR connection with API key authentication:
+
+**Server** — configure one or both keys:
+
+```csharp
+builder.AddThargaCommunicationServer(options =>
+{
+    options.PrimaryApiKey = builder.Configuration["Communication:PrimaryApiKey"];
+    options.SecondaryApiKey = builder.Configuration["Communication:SecondaryApiKey"];
+    options.RegisterClientStateService<MyClientStateService>();
+    options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+});
+```
+
+**Client** — provide the matching key:
+
+```json
+{
+  "Tharga": {
+    "Communication": {
+      "ServerAddress": "https://localhost:5001",
+      "ApiKey": "your-secret-key"
+    }
+  }
+}
+```
+
+Or via the options callback:
+
+```csharp
+builder.AddThargaCommunicationClient(o =>
+{
+    o.ApiKey = builder.Configuration["Communication:ApiKey"];
+});
+```
+
+API keys can also be configured via User Secrets or environment variables. To rotate keys without downtime, set both `PrimaryApiKey` and `SecondaryApiKey` on the server — either key is accepted.
 
 ## License
 

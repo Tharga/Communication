@@ -13,13 +13,15 @@ internal sealed class SignalRHub : Hub
     private readonly IServerCommunication _serverCommunication;
     private readonly IMessageExecutor _messageExecutor;
     private readonly ClientStateServiceBase _clientStateService;
+    private readonly CommunicationOptions _communicationOptions;
     private readonly ILogger<SignalRHub> _logger;
 
     public SignalRHub(IServerCommunication serverCommunication, IMessageExecutor messageExecutor, IServiceProvider serviceProvider, IOptions<CommunicationOptions> options, ILogger<SignalRHub> logger)
     {
         _serverCommunication = serverCommunication;
         _messageExecutor = messageExecutor;
-        var type = options.Value._clientStateServiceType.Interface;
+        _communicationOptions = options.Value;
+        var type = _communicationOptions._clientStateServiceType.Interface;
         _clientStateService = serviceProvider.GetService(type) as ClientStateServiceBase;
         _logger = logger;
     }
@@ -27,6 +29,14 @@ internal sealed class SignalRHub : Hub
     public override async Task OnConnectedAsync()
     {
         var httpContext = Context.GetHttpContext();
+
+        var apiKey = httpContext!.Request.Headers[Constants.Header.ApiKey].ToString();
+        if (!_communicationOptions.ValidateApiKey(apiKey))
+        {
+            _logger.LogWarning("Client connection rejected: invalid or missing API key from {RemoteIp}.", httpContext.Connection.RemoteIpAddress);
+            Context.Abort();
+            return;
+        }
 
         var instance = httpContext!.Request.Headers[Constants.Header.Instance];
         var machine = httpContext!.Request.Headers[Constants.Header.Machine];
