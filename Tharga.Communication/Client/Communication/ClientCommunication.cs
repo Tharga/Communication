@@ -7,11 +7,16 @@ namespace Tharga.Communication.Client.Communication;
 internal class ClientCommunication : IClientCommunication
 {
     private readonly ISignalRHostedService _signalRConnectionState;
+    private readonly SubscriptionStateTracker _subscriptionStateTracker;
 
-    public ClientCommunication(ISignalRHostedService signalRConnectionState)
+    public ClientCommunication(ISignalRHostedService signalRConnectionState, SubscriptionStateTracker subscriptionStateTracker)
     {
         _signalRConnectionState = signalRConnectionState;
+        _subscriptionStateTracker = subscriptionStateTracker;
+        _subscriptionStateTracker.SubscriptionChanged += (_, e) => SubscriptionChanged?.Invoke(this, e);
     }
+
+    public event EventHandler<SubscriptionStateChanged> SubscriptionChanged;
 
     public Task PostAsync<T>(T message)
     {
@@ -30,4 +35,18 @@ internal class ClientCommunication : IClientCommunication
     }
 
     public bool IsConnected => _signalRConnectionState.State == HubConnectionState.Connected;
+
+    public bool HasSubscribers<T>(string key = null)
+    {
+        return _subscriptionStateTracker.HasSubscribers(typeof(T).FullName!, key);
+    }
+
+    public async Task<bool> PostIfSubscribedAsync<T>(T message, string key = null)
+    {
+        if (!HasSubscribers<T>(key))
+            return false;
+
+        await PostAsync(message);
+        return true;
+    }
 }
