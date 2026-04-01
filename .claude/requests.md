@@ -12,7 +12,7 @@
 - **Date:** 2026-03-31
 - **Priority:** High
 - **Description:** Tharga.MongoDB needs to secure the SignalR hub used for distributed monitoring. The authentication should be built into Tharga.Communication itself so consumers don't need custom middleware. Suggested approach: (1) Client-side: allow configuring an API key via `CommunicationOptions` (code or `appsettings.json` / User Secrets), sent as a custom header during SignalR negotiation. (2) Server-side: accept a primary and secondary API key via configuration. Validate the header on connection — reject with 401 if invalid. Accept either key for zero-downtime key rotation. (3) When no keys are configured on the server, accept all connections (backwards compatible). Configuration should work via `appsettings.json`, Manage User Secrets, environment variables, or code options — no consumer-side middleware needed.
-- **Status:** Pending
+- **Status:** Done (2026-04-01) — Client sends X-Api-Key header. Server validates against primary/secondary keys. Backwards compatible. Version bumped to 1.1.0. Notification sent to Tharga.MongoDB.
 
 ### Subscription-based messaging support
 - **From:** Tharga.MongoDB (`c:\dev\tharga\Toolkit\MongoDB`)
