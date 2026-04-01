@@ -39,6 +39,7 @@ public static class CommunicationClientRegistration
         builder.Services.AddSingleton<ISignalRHostedService>(sp => sp.GetRequiredService<SignalRHostedService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SignalRHostedService>());
 
+        builder.Services.AddSingleton<SubscriptionStateTracker>();
         builder.Services.AddSingleton<IClientCommunication, Communication.ClientCommunication>();
         builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
         var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services);
