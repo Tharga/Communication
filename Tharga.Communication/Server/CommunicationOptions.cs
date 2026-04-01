@@ -8,6 +8,28 @@ public record CommunicationOptions
     internal (Type Interface, Type Service) _clientStateServiceType;
     internal (Type Interface, Type Service) _clientRepositoryType;
 
+    /// <summary>Gets or sets the primary API key. When set, clients must provide a matching key to connect.</summary>
+    public string PrimaryApiKey { get; set; }
+
+    /// <summary>Gets or sets the secondary API key for zero-downtime key rotation. Either key is accepted.</summary>
+    public string SecondaryApiKey { get; set; }
+
+    /// <summary>
+    /// Validates a client-provided API key against the configured keys.
+    /// Returns <c>true</c> if no keys are configured (backwards compatible) or if the key matches either the primary or secondary key.
+    /// </summary>
+    /// <param name="apiKey">The API key provided by the client, or <c>null</c> if none was sent.</param>
+    /// <returns><c>true</c> if the connection should be accepted; <c>false</c> if it should be rejected.</returns>
+    public bool ValidateApiKey(string apiKey)
+    {
+        var hasKeys = !string.IsNullOrEmpty(PrimaryApiKey) || !string.IsNullOrEmpty(SecondaryApiKey);
+        if (!hasKeys) return true;
+
+        if (string.IsNullOrEmpty(apiKey)) return false;
+
+        return apiKey == PrimaryApiKey || apiKey == SecondaryApiKey;
+    }
+
     /// <summary>
     /// Registers a client state service type using the concrete type as both interface and implementation.
     /// </summary>

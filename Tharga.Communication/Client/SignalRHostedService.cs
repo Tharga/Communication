@@ -81,6 +81,11 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
                 {
                     options.Headers.Add(Constants.Header.Version, version);
                 }
+
+                if (!string.IsNullOrEmpty(_options.ApiKey))
+                {
+                    options.Headers.Add(Constants.Header.ApiKey, _options.ApiKey);
+                }
             })
             .WithAutomaticReconnect(_options.ReconnectDelays)
             .Build();

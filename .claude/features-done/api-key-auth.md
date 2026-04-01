@@ -1,5 +1,8 @@
 # Feature: api-key-auth
 
+## Originating branch
+`develop`
+
 ## Request
 From Tharga.MongoDB — see `.claude/requests.md`
 
@@ -10,7 +13,7 @@ Add API key authentication to SignalR connections so servers can restrict access
 
 ### Client side
 - Add `ApiKey` property to client `CommunicationOptions`
-- Send API key as a custom header (e.g. `X-Api-Key`) during SignalR negotiation in `SignalRHostedService.BuildConnection`
+- Send API key as a custom header (`X-Api-Key`) during SignalR negotiation in `SignalRHostedService.BuildConnection`
 - Add the header constant to `Constants.Header`
 
 ### Server side
@@ -18,19 +21,6 @@ Add API key authentication to SignalR connections so servers can restrict access
 - Validate the `X-Api-Key` header in `SignalRHub.OnConnectedAsync` — reject with `HubException` if invalid
 - When neither key is configured on the server, accept all connections (backwards compatible)
 - Accept either key to support zero-downtime key rotation
-
-### Configuration
-- Configurable via `appsettings.json`, User Secrets, environment variables, or code options callback
-
-## Steps
-- [ ] Add `ApiKey` header constant to `Constants.Header`
-- [ ] Add `ApiKey` property to client `CommunicationOptions`
-- [ ] Send API key header in `SignalRHostedService.BuildConnection`
-- [ ] Add `PrimaryApiKey` and `SecondaryApiKey` to server `CommunicationOptions`
-- [ ] Validate API key in `SignalRHub.OnConnectedAsync`
-- [ ] Write tests: no keys configured (accept all), valid primary key, valid secondary key, invalid key (reject), missing key when server requires one
-- [ ] Update README with authentication configuration examples
-- [ ] Commit and notify Tharga.MongoDB via requests.md
 
 ## Acceptance criteria
 - [ ] Client sends API key header when configured
@@ -40,5 +30,5 @@ Add API key authentication to SignalR connections so servers can restrict access
 - [ ] Tests cover all scenarios
 - [ ] README documents the feature
 
-## Notes
-- This is a breaking behavior change for servers that configure keys — suggest minor version bump
+## Done condition
+All acceptance criteria are met and user confirms the feature is complete.

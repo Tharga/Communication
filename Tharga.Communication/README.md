@@ -11,6 +11,7 @@ A SignalR-based communication framework for .NET with built-in message handler p
 - Client connection tracking with metadata
 - Automatic reconnection with configurable delays
 - Extensible client state storage
+- API key authentication with key rotation support
 
 ## Getting started
 
