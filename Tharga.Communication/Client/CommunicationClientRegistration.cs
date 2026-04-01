@@ -23,7 +23,7 @@ public static class CommunicationClientRegistration
     public static void AddThargaCommunicationClient(this IHostApplicationBuilder builder, Action<CommunicationOptions> options = default)
     {
         var configuration = builder.Services.BuildServiceProvider().GetService<IConfiguration>();
-        var value = configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>();
+        var value = configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>() ?? new CommunicationOptions();
 
         var o = new CommunicationOptions
         {
