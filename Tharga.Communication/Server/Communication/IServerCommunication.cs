@@ -40,4 +40,20 @@ public interface IServerCommunication
     /// Gets a dictionary of pending requests, keyed by connection ID with the request creation time.
     /// </summary>
     Dictionary<string, DateTime> GetPendingAsync();
+
+    /// <summary>
+    /// Subscribes to notifications for a message type, optionally scoped to a specific key.
+    /// When the first subscriber arrives, all connected clients are notified.
+    /// Dispose the returned handle to unsubscribe.
+    /// </summary>
+    /// <typeparam name="T">The message type to subscribe to.</typeparam>
+    /// <param name="key">Optional data key (e.g. an entity ID). When <c>null</c>, subscribes to all data of this type.</param>
+    /// <returns>An <see cref="IAsyncDisposable"/> handle — dispose to unsubscribe.</returns>
+    Task<IAsyncDisposable> SubscribeAsync<T>(string key = null);
+
+    /// <summary>
+    /// Returns a snapshot of all active subscriptions and their subscriber counts.
+    /// Keys are formatted as <c>"TypeName"</c> or <c>"TypeName:key"</c>.
+    /// </summary>
+    IReadOnlyDictionary<string, int> GetSubscriptions();
 }

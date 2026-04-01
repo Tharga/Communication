@@ -23,7 +23,7 @@ public static class CommunicationClientRegistration
     public static void AddThargaCommunicationClient(this IHostApplicationBuilder builder, Action<CommunicationOptions> options = default)
     {
         var configuration = builder.Services.BuildServiceProvider().GetService<IConfiguration>();
-        var value = configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>();
+        var value = configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>() ?? new CommunicationOptions();
 
         var o = new CommunicationOptions
         {
@@ -39,6 +39,7 @@ public static class CommunicationClientRegistration
         builder.Services.AddSingleton<ISignalRHostedService>(sp => sp.GetRequiredService<SignalRHostedService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SignalRHostedService>());
 
+        builder.Services.AddSingleton<SubscriptionStateTracker>();
         builder.Services.AddSingleton<IClientCommunication, Communication.ClientCommunication>();
         builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
         var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services);

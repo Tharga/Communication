@@ -36,5 +36,8 @@ public static class Constants
 
         /// <summary>Header containing the client application version.</summary>
         public const string Version = "X-Client-Version";
+
+        /// <summary>Header containing the API key for authentication.</summary>
+        public const string ApiKey = "X-Api-Key";
     }
 }
