@@ -1,7 +1,9 @@
 ﻿using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Tharga.Communication.Client;
 using Tharga.Communication.Contract;
 using Tharga.Communication.MessageHandler;
 using Tharga.Communication.Server.Communication;
@@ -51,6 +53,7 @@ public static class CommunicationServerRegistration
         builder.Services.AddSingleton(o._clientRepositoryType.Interface, o._clientRepositoryType.Service);
 
         builder.Services.AddSingleton<SubscriptionManager>();
+        builder.Services.TryAddSingleton<SubscriptionStateTracker>();
         builder.Services.AddSingleton<IServerCommunication, ServerCommunication>();
         builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
         var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services);
