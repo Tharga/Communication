@@ -27,7 +27,9 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
         _options = options.Value;
         _logger = logger;
 
-        _serverAddress = $"{_options.ServerAddress.TrimEnd('/')}/{_options.Pattern.TrimStart('/')}";
+        _serverAddress = string.IsNullOrEmpty(_options.ServerAddress)
+            ? null
+            : $"{_options.ServerAddress.TrimEnd('/')}/{_options.Pattern.TrimStart('/')}";
     }
 
     public event EventHandler<HubConnectionStateChangedEventArgs> HubConnectionStateChangedEvent;
@@ -35,11 +37,20 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
 
     public Task SendAsync(string methodName, object payload)
     {
+        if (_connection is null)
+            throw new InvalidOperationException("Cannot send messages: no server address configured.");
+
         return _connection.SendAsync(methodName, payload);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (_serverAddress is null)
+        {
+            _logger.LogDebug("No ServerAddress configured — SignalR client will not connect.");
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
