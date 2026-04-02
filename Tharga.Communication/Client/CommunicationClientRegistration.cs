@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Tharga.Communication.Client.Communication;
@@ -39,7 +40,7 @@ public static class CommunicationClientRegistration
         builder.Services.AddSingleton<ISignalRHostedService>(sp => sp.GetRequiredService<SignalRHostedService>());
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SignalRHostedService>());
 
-        builder.Services.AddSingleton<SubscriptionStateTracker>();
+        builder.Services.TryAddSingleton<SubscriptionStateTracker>();
         builder.Services.AddSingleton<IClientCommunication, Communication.ClientCommunication>();
         builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
         var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services);
