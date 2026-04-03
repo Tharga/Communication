@@ -26,6 +26,7 @@ public class SignalRHostedServiceTests
             new Mock<IInstanceService>().Object,
             new Mock<IMessageExecutor>().Object,
             options,
+            new ClientResponseMediator(),
             new Mock<ILogger<SignalRHostedService>>().Object);
 
         act.Should().NotThrow();
@@ -44,6 +45,7 @@ public class SignalRHostedServiceTests
             new Mock<IInstanceService>().Object,
             new Mock<IMessageExecutor>().Object,
             options,
+            new ClientResponseMediator(),
             new Mock<ILogger<SignalRHostedService>>().Object);
 
         act.Should().NotThrow();
@@ -62,6 +64,7 @@ public class SignalRHostedServiceTests
             new Mock<IInstanceService>().Object,
             new Mock<IMessageExecutor>().Object,
             options,
+            new ClientResponseMediator(),
             new Mock<ILogger<SignalRHostedService>>().Object);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -89,6 +92,7 @@ public class SignalRHostedServiceTests
             new Mock<IInstanceService>().Object,
             new Mock<IMessageExecutor>().Object,
             options,
+            new ClientResponseMediator(),
             new Mock<ILogger<SignalRHostedService>>().Object);
 
         var act = () => sut.SendAsync("PostMessage", new object());

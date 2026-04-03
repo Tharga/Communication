@@ -1,10 +1,13 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Tharga.Communication.Client;
 using Tharga.Communication.Client.Communication;
 using Tharga.Communication.Contract;
 using Xunit;
+using ClientOptions = Tharga.Communication.Client.CommunicationOptions;
 
 namespace Tharga.Communication.Tests;
 
@@ -17,7 +20,7 @@ public class ClientCommunicationSubscriptionTests
     public ClientCommunicationSubscriptionTests()
     {
         _signalR.Setup(x => x.State).Returns(HubConnectionState.Connected);
-        _sut = new ClientCommunication(_signalR.Object, _tracker);
+        _sut = new ClientCommunication(_signalR.Object, new ClientResponseMediator(), _tracker, Options.Create(new ClientOptions()), NullLogger<ClientCommunication>.Instance);
     }
 
     [Fact]

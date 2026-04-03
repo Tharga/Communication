@@ -12,6 +12,8 @@ using Tharga.Communication.Server;
 using Tharga.Communication.Server.Communication;
 using Xunit;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Tharga.Communication.Tests;
 
@@ -65,7 +67,7 @@ public class SubscriptionIntegrationTests
 
         var signalR = new Mock<ISignalRHostedService>();
         signalR.Setup(x => x.State).Returns(HubConnectionState.Connected);
-        _client = new ClientCommunication(signalR.Object, _tracker);
+        _client = new ClientCommunication(signalR.Object, new ClientResponseMediator(), _tracker, Options.Create(new Tharga.Communication.Client.CommunicationOptions()), Microsoft.Extensions.Logging.Abstractions.NullLogger<ClientCommunication>.Instance);
     }
 
     [Fact]

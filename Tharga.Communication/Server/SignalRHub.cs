@@ -84,7 +84,27 @@ internal sealed class SignalRHub : Hub
     [HubMethodName(Constants.SendMessage)]
     public async Task SendMessageAsync(object payload)
     {
-        throw new NotImplementedException();
+        var connectionId = Context.ConnectionId;
+
+        _logger.LogTrace("{Method} request from client '{ConnectionId}'. [{Payload}]", nameof(SendMessageAsync), connectionId, payload);
+
+        var json = payload.ToString() ?? throw new NullReferenceException("Cannot get json payload.");
+        var wrapper = JsonSerializer.Deserialize<RequestWrapper>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        try
+        {
+            var response = await _messageExecutor.ExecuteAsync(connectionId, wrapper);
+            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to handle SendMessage for type '{Type}' from client '{ConnectionId}'.", wrapper.Type, connectionId);
+            var errorResponse = wrapper with
+            {
+                Payload = JsonSerializer.Serialize(new { Error = ex.Message })
+            };
+            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, errorResponse);
+        }
     }
 
     [HubMethodName(Constants.ResponseMessage)]
