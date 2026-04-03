@@ -56,7 +56,7 @@ public static class CommunicationServerRegistration
         builder.Services.TryAddSingleton<SubscriptionStateTracker>();
         builder.Services.AddSingleton<IServerCommunication, ServerCommunication>();
         builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
-        var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services);
+        var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services, o.AdditionalAssemblies);
         builder.Services.AddSingleton<IHandlerTypeService>(_ => new HandlerTypeService(handlerTypes));
     }
 

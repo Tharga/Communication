@@ -15,6 +15,12 @@ public record CommunicationOptions
     public string SecondaryApiKey { get; set; }
 
     /// <summary>
+    /// Gets or sets additional assemblies to scan for message handlers.
+    /// Use this when handlers are defined in external packages that are not discovered by the default assembly scan.
+    /// </summary>
+    public System.Reflection.Assembly[] AdditionalAssemblies { get; set; }
+
+    /// <summary>
     /// Validates a client-provided API key against the configured keys.
     /// Returns <c>true</c> if no keys are configured (backwards compatible) or if the key matches either the primary or secondary key.
     /// </summary>

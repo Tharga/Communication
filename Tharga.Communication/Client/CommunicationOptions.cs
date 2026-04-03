@@ -17,4 +17,10 @@ public record CommunicationOptions
 
     /// <summary>Gets or sets the API key sent to the server for authentication. When set, the key is sent as an <c>X-Api-Key</c> header during SignalR negotiation.</summary>
     public string ApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets additional assemblies to scan for message handlers.
+    /// Use this when handlers are defined in external packages that are not discovered by the default assembly scan.
+    /// </summary>
+    public System.Reflection.Assembly[] AdditionalAssemblies { get; set; }
 }
