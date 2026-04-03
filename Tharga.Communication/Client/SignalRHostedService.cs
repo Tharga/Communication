@@ -14,17 +14,19 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
     private readonly IInstanceService _instanceService;
     private readonly IMessageExecutor _messageExecutor;
     private readonly CommunicationOptions _options;
+    private readonly ClientResponseMediator _responseMediator;
     private readonly ILogger<SignalRHostedService> _logger;
 
     private HubConnection _connection;
 
     private readonly string _serverAddress;
 
-    public SignalRHostedService(IInstanceService instanceService, IMessageExecutor messageExecutor, IOptions<CommunicationOptions> options, ILogger<SignalRHostedService> logger)
+    public SignalRHostedService(IInstanceService instanceService, IMessageExecutor messageExecutor, IOptions<CommunicationOptions> options, ClientResponseMediator responseMediator, ILogger<SignalRHostedService> logger)
     {
         _instanceService = instanceService;
         _messageExecutor = messageExecutor;
         _options = options.Value;
+        _responseMediator = responseMediator;
         _logger = logger;
 
         _serverAddress = string.IsNullOrEmpty(_options.ServerAddress)
@@ -157,10 +159,9 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
             });
         });
 
-        _connection.On<RequestWrapper>(Constants.ResponseMessage, async payload =>
+        _connection.On<RequestWrapper>(Constants.ResponseMessage, payload =>
         {
-            Debugger.Break();
-            throw new NotImplementedException();
+            _responseMediator.Deliver(payload);
         });
     }
 

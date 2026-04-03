@@ -20,8 +20,9 @@ public interface IClientCommunication
     /// <typeparam name="TRequest">The request message type.</typeparam>
     /// <typeparam name="TResponse">The expected response type.</typeparam>
     /// <param name="message">The request payload.</param>
+    /// <param name="timeout">Optional timeout. Defaults to <see cref="CommunicationOptions.SendMessageTimeout"/> or 60 seconds.</param>
     /// <returns>The response from the server.</returns>
-    Task<TResponse> SendMessage<TRequest, TResponse>(TRequest message);
+    Task<TResponse> SendMessage<TRequest, TResponse>(TRequest message, TimeSpan? timeout = null);
 
     /// <summary>
     /// Gets whether the client is currently connected to the server.

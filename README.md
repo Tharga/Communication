@@ -108,6 +108,11 @@ public class MyService(IClientCommunication client)
     {
         await client.PostAsync(new MyNotification("Hello from client"));
     }
+
+    public async Task<PingResponse> PingServer()
+    {
+        return await client.SendMessage<PingRequest, PingResponse>(new PingRequest("Ping"));
+    }
 }
 ```
 
@@ -171,6 +176,7 @@ public class MyClientStateService : ClientStateServiceBase<ClientConnectionInfo>
 | `ReconnectDelays` | Delays between reconnection attempts | `[0s, 2s, 10s, 30s]` |
 | `ApiKey` | API key sent to the server for authentication | *(none)* |
 | `AdditionalAssemblies` | Extra assemblies to scan for message handlers | *(none)* |
+| `SendMessageTimeout` | Default timeout for request-response messages | `60s` |
 
 ### Server options
 
