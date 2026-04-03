@@ -170,6 +170,7 @@ public class MyClientStateService : ClientStateServiceBase<ClientConnectionInfo>
 | `Pattern` | The hub endpoint pattern | `"hub"` |
 | `ReconnectDelays` | Delays between reconnection attempts | `[0s, 2s, 10s, 30s]` |
 | `ApiKey` | API key sent to the server for authentication | *(none)* |
+| `AdditionalAssemblies` | Extra assemblies to scan for message handlers | *(none)* |
 
 ### Server options
 
@@ -179,6 +180,7 @@ The server requires registering a `ClientStateServiceBase` implementation and a 
 |---|---|---|
 | `PrimaryApiKey` | Primary API key for client authentication | *(none)* |
 | `SecondaryApiKey` | Secondary API key for zero-downtime key rotation | *(none)* |
+| `AdditionalAssemblies` | Extra assemblies to scan for message handlers | *(none)* |
 
 When no API keys are configured on the server, all connections are accepted (backwards compatible). When one or both keys are set, clients must provide a matching key via the `X-Api-Key` header.
 
@@ -221,6 +223,31 @@ builder.AddThargaCommunicationClient(o =>
 ```
 
 API keys can also be configured via User Secrets or environment variables. To rotate keys without downtime, set both `PrimaryApiKey` and `SecondaryApiKey` on the server — either key is accepted.
+
+## Handler discovery
+
+By default, message handlers are discovered by scanning assemblies that match the entry assembly name prefix. If your handlers are in an external package (e.g. a separate NuGet), they won't be found automatically. Use `AdditionalAssemblies` to include them:
+
+```csharp
+builder.AddThargaCommunicationClient(o =>
+{
+    o.ServerAddress = "https://localhost:5001";
+    o.AdditionalAssemblies = [typeof(MyExternalHandler).Assembly];
+});
+```
+
+The same option is available on the server side:
+
+```csharp
+builder.AddThargaCommunicationServer(options =>
+{
+    options.AdditionalAssemblies = [typeof(MyExternalHandler).Assembly];
+    options.RegisterClientStateService<MyClientStateService>();
+    options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+});
+```
+
+If a client receives a `SendMessage` for a type with no registered handler, it immediately returns an error response to the server instead of silently timing out.
 
 ## License
 
