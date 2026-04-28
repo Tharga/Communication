@@ -66,7 +66,7 @@ public class IntegrationTests : IAsyncLifetime
             info with { IsConnected = false, DisconnectTime = disconnectTime };
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         ReceivedMessages.Clear();
 
@@ -101,7 +101,7 @@ public class IntegrationTests : IAsyncLifetime
         await _hubConnection.StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_hubConnection != null)
         {
