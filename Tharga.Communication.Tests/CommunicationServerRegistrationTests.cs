@@ -53,5 +53,10 @@ public class CommunicationServerRegistrationTests
     {
         public override Task ConnectAsync(ClientConnection clientConnection) => Task.CompletedTask;
         public override Task DisconnectedAsync(string connectionId) => Task.CompletedTask;
+        public override async IAsyncEnumerable<IClientConnectionInfo> GetConnectionInfosAsync()
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
     }
 }

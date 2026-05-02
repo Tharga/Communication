@@ -12,4 +12,9 @@ public interface IHandlerTypeService
     /// <param name="handlerTypeInfo">When found, contains the handler metadata.</param>
     /// <returns><c>true</c> if a handler was found; otherwise <c>false</c>.</returns>
     bool TryGetHandler(Type type, out HandlerTypeInfo handlerTypeInfo);
+
+    /// <summary>
+    /// Returns all registered handler type infos.
+    /// </summary>
+    IReadOnlyCollection<HandlerTypeInfo> GetAll();
 }

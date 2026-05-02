@@ -18,6 +18,11 @@ public class HandlerTypeService : IHandlerTypeService
         return _handlerTypes.TryGetValue(type, out handlerTypeInfo);
     }
 
+    public IReadOnlyCollection<HandlerTypeInfo> GetAll()
+    {
+        return _handlerTypes.Values.ToArray();
+    }
+
     public static Dictionary<Type, HandlerTypeInfo> GetHandlerTypes(IServiceCollection serviceCollection, IEnumerable<Assembly> assemblies = null)
     {
         var assemblyArray = assemblies?.ToArray();

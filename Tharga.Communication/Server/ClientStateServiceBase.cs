@@ -15,6 +15,12 @@ public abstract class ClientStateServiceBase
     /// <summary>Handles a client disconnection.</summary>
     /// <param name="connectionId">The SignalR connection ID that disconnected.</param>
     public abstract Task DisconnectedAsync(string connectionId);
+
+    /// <summary>
+    /// Returns connection information for all tracked clients as the base <see cref="IClientConnectionInfo"/> contract.
+    /// Use this when the concrete client type is not known (e.g. from diagnostic surfaces such as MCP).
+    /// </summary>
+    public abstract IAsyncEnumerable<IClientConnectionInfo> GetConnectionInfosAsync();
 }
 
 /// <summary>
@@ -85,6 +91,14 @@ public abstract class ClientStateServiceBase<T> : ClientStateServiceBase
     public async IAsyncEnumerable<T> GetAsync()
     {
         await foreach (var item in _repository.GetAsync())
+        {
+            yield return item;
+        }
+    }
+
+    public override async IAsyncEnumerable<IClientConnectionInfo> GetConnectionInfosAsync()
+    {
+        await foreach (var item in GetAsync())
         {
             yield return item;
         }

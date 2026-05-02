@@ -70,4 +70,26 @@ public class HandlerTypeServiceTests
 
         service.TryGetHandler(typeof(string), out _).Should().BeFalse();
     }
+
+    [Fact]
+    public void GetAll_NoHandlers_ReturnsEmpty()
+    {
+        var service = new HandlerTypeService(new Dictionary<Type, HandlerTypeInfo>());
+
+        service.GetAll().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void GetAll_ReturnsAllRegisteredHandlers()
+    {
+        var services = new ServiceCollection();
+        var testAssembly = Assembly.GetExecutingAssembly();
+        var handlers = HandlerTypeService.GetHandlerTypes(services, [testAssembly]);
+        var service = new HandlerTypeService(handlers);
+
+        var all = service.GetAll();
+
+        all.Should().Contain(h => h.PayloadType == typeof(TestMessage));
+        all.Should().Contain(h => h.PayloadType == typeof(TestRequest));
+    }
 }
