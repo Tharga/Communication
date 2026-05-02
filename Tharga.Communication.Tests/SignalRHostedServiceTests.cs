@@ -71,7 +71,7 @@ public class SignalRHostedServiceTests
         await sut.StartAsync(cts.Token);
 
         // Give it a moment to run ExecuteAsync
-        await Task.Delay(100);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
 
         // Should not be connected
         sut.State.Should().Be(Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Disconnected);

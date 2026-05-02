@@ -125,16 +125,17 @@ public class IntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Client_PostAsync_ServerHandlerReceivesMessage()
     {
+        var ct = TestContext.Current.CancellationToken;
         var wrapper = new RequestWrapper
         {
             Type = typeof(FireAndForgetMessage).AssemblyQualifiedName!,
             Payload = JsonSerializer.Serialize(new FireAndForgetMessage("integration-test"))
         };
 
-        await _hubConnection.SendAsync(Constants.PostMessage, wrapper);
+        await _hubConnection.SendAsync(Constants.PostMessage, wrapper, ct);
 
         // Give handler time to execute
-        await Task.Delay(200);
+        await Task.Delay(200, ct);
 
         ReceivedMessages.Should().Contain("integration-test");
     }
@@ -178,7 +179,8 @@ public class IntegrationTests : IAsyncLifetime
         var app2 = builder2.Build();
         app2.Urls.Add("http://127.0.0.1:0");
         app2.UseThargaCommunicationServer();
-        await app2.StartAsync();
+        var ct = TestContext.Current.CancellationToken;
+        await app2.StartAsync(ct);
 
         try
         {
@@ -194,10 +196,10 @@ public class IntegrationTests : IAsyncLifetime
                 })
                 .Build();
 
-            await badConnection.StartAsync();
+            await badConnection.StartAsync(ct);
 
             // Connection is established but server aborts it — wait for disconnect
-            await Task.Delay(500);
+            await Task.Delay(500, ct);
 
             badConnection.State.Should().Be(HubConnectionState.Disconnected);
 
@@ -205,7 +207,7 @@ public class IntegrationTests : IAsyncLifetime
         }
         finally
         {
-            await app2.StopAsync();
+            await app2.StopAsync(ct);
             await app2.DisposeAsync();
         }
     }
@@ -213,10 +215,11 @@ public class IntegrationTests : IAsyncLifetime
     [Fact]
     public async Task ClientState_TrackedOnConnectAndDisconnect()
     {
+        var ct = TestContext.Current.CancellationToken;
         var stateService = _app.Services.GetRequiredService<TestClientStateService>();
 
         // Give time for connect event
-        await Task.Delay(100);
+        await Task.Delay(100, ct);
 
         var clients = new List<ClientConnectionInfo>();
         await foreach (var client in stateService.GetAsync())
@@ -225,8 +228,8 @@ public class IntegrationTests : IAsyncLifetime
         clients.Should().ContainSingle(c => c.IsConnected && c.Machine == "test-machine");
 
         // Disconnect
-        await _hubConnection.StopAsync();
-        await Task.Delay(200);
+        await _hubConnection.StopAsync(ct);
+        await Task.Delay(200, ct);
 
         clients.Clear();
         await foreach (var client in stateService.GetAsync())
