@@ -100,12 +100,14 @@ jobs:
         shell: bash
         run: |
           dotnet pack Tharga.Communication/Tharga.Communication.csproj -c Release --no-build -o ./artifacts -p:PackageVersion=${{ steps.version.outputs.version }}
+          dotnet pack Tharga.Communication.Mcp/Tharga.Communication.Mcp.csproj -c Release --no-build -o ./artifacts -p:PackageVersion=${{ steps.version.outputs.version }}
 
       - name: Pack (prerelease)
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           dotnet pack Tharga.Communication/Tharga.Communication.csproj -c Release --no-build -o ./artifacts -p:PackageVersion=${{ steps.preversion.outputs.version }}
+          dotnet pack Tharga.Communication.Mcp/Tharga.Communication.Mcp.csproj -c Release --no-build -o ./artifacts -p:PackageVersion=${{ steps.preversion.outputs.version }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -206,6 +208,7 @@ jobs:
             echo ""
             echo "- Tag: [\`${{ steps.version.outputs.version }}\`](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }})"
             echo "- NuGet: https://www.nuget.org/packages/Tharga.Communication/${{ steps.version.outputs.version }}"
+            echo "- NuGet: https://www.nuget.org/packages/Tharga.Communication.Mcp/${{ steps.version.outputs.version }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment released version on merged PR
@@ -294,4 +297,5 @@ jobs:
             echo ""
             echo "- Tag: [\`${{ steps.version.outputs.version }}\`](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }})"
             echo "- NuGet: https://www.nuget.org/packages/Tharga.Communication/${{ steps.version.outputs.version }}"
+            echo "- NuGet: https://www.nuget.org/packages/Tharga.Communication.Mcp/${{ steps.version.outputs.version }}"
           } >> "$GITHUB_STEP_SUMMARY"

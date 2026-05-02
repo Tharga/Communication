@@ -30,6 +30,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Tharga.Communication\Tharga.Communication.csproj" />
+		<ProjectReference Include="..\Tharga.Communication.Mcp\Tharga.Communication.Mcp.csproj" />
 	</ItemGroup>
 
 </Project>
