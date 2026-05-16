@@ -171,7 +171,7 @@ public class IntegrationTests : IAsyncLifetime
 
         builder2.AddThargaCommunicationServer(options =>
         {
-            options.PrimaryApiKey = "secret-key";
+            options.ApiKeys = ["secret-key"];
             options.RegisterClientStateService<TestClientStateService>();
             options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
         });

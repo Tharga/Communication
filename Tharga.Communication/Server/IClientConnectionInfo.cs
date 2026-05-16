@@ -20,6 +20,12 @@ public interface IClientConnectionInfo
     /// <summary>Gets the client application version.</summary>
     string Version { get; }
 
+    /// <summary>Gets the identifier of the API key that authenticated this connection, if any.</summary>
+    string KeyId { get; }
+
+    /// <summary>Gets the optional human-readable name of the API key that authenticated this connection.</summary>
+    string KeyName { get; }
+
     /// <summary>Gets or initializes whether the client is currently connected.</summary>
     bool IsConnected { get; init; }
 

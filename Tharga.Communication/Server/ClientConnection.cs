@@ -19,4 +19,10 @@ public record ClientConnection
 
     /// <summary>Gets the client application version.</summary>
     public required string Version { get; init; }
+
+    /// <summary>Gets the identifier of the API key that authenticated this connection, if any.</summary>
+    public string KeyId { get; init; }
+
+    /// <summary>Gets the optional human-readable name of the API key that authenticated this connection.</summary>
+    public string KeyName { get; init; }
 }
