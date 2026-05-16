@@ -13,15 +13,15 @@ internal sealed class SignalRHub : Hub
     private readonly IServerCommunication _serverCommunication;
     private readonly IMessageExecutor _messageExecutor;
     private readonly ClientStateServiceBase _clientStateService;
-    private readonly CommunicationOptions _communicationOptions;
+    private readonly IApiKeyValidator _apiKeyValidator;
     private readonly ILogger<SignalRHub> _logger;
 
-    public SignalRHub(IServerCommunication serverCommunication, IMessageExecutor messageExecutor, IServiceProvider serviceProvider, IOptions<CommunicationOptions> options, ILogger<SignalRHub> logger)
+    public SignalRHub(IServerCommunication serverCommunication, IMessageExecutor messageExecutor, IServiceProvider serviceProvider, IApiKeyValidator apiKeyValidator, IOptions<CommunicationOptions> options, ILogger<SignalRHub> logger)
     {
         _serverCommunication = serverCommunication;
         _messageExecutor = messageExecutor;
-        _communicationOptions = options.Value;
-        var type = _communicationOptions._clientStateServiceType.Interface;
+        _apiKeyValidator = apiKeyValidator;
+        var type = options.Value._clientStateServiceType.Interface;
         _clientStateService = serviceProvider.GetService(type) as ClientStateServiceBase;
         _logger = logger;
     }
@@ -31,9 +31,10 @@ internal sealed class SignalRHub : Hub
         var httpContext = Context.GetHttpContext();
 
         var apiKey = httpContext!.Request.Headers[Constants.Header.ApiKey].ToString();
-        if (!_communicationOptions.ValidateApiKey(apiKey))
+        var validation = await _apiKeyValidator.ValidateAsync(apiKey, Context.ConnectionAborted);
+        if (!validation.IsValid)
         {
-            _logger.LogWarning("Client connection rejected: invalid or missing API key from {RemoteIp}.", httpContext.Connection.RemoteIpAddress);
+            _logger.LogWarning("Client connection rejected: API key validation failed for {RemoteIp}.", httpContext.Connection.RemoteIpAddress);
             Context.Abort();
             return;
         }
@@ -49,10 +50,12 @@ internal sealed class SignalRHub : Hub
             Instance = Guid.Parse(instance),
             Machine = machine,
             Type = type,
-            Version = version
+            Version = version,
+            KeyId = validation.KeyId,
+            KeyName = validation.KeyName
         };
 
-        _logger.LogInformation("Client '{instance}' connected '{connectionId}' on machine {machine} version {version}.", clientConnection.Instance, clientConnection.ConnectionId, clientConnection.Machine, version);
+        _logger.LogInformation("Client '{instance}' connected '{connectionId}' on machine {machine} version {version} (key {keyId}).", clientConnection.Instance, clientConnection.ConnectionId, clientConnection.Machine, version, clientConnection.KeyId ?? "<none>");
 
         await _clientStateService.ConnectAsync(clientConnection);
 

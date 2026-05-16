@@ -1,4 +1,4 @@
-﻿using Tharga.Communication.Server;
+using Tharga.Communication.Server;
 
 /// <summary>
 /// Configuration options for the Tharga.Communication server.
@@ -7,12 +7,14 @@ public record CommunicationOptions
 {
     internal (Type Interface, Type Service) _clientStateServiceType;
     internal (Type Interface, Type Service) _clientRepositoryType;
+    internal (Type Interface, Type Service) _apiKeyValidatorType;
 
-    /// <summary>Gets or sets the primary API key. When set, clients must provide a matching key to connect.</summary>
-    public string PrimaryApiKey { get; set; }
-
-    /// <summary>Gets or sets the secondary API key for zero-downtime key rotation. Either key is accepted.</summary>
-    public string SecondaryApiKey { get; set; }
+    /// <summary>
+    /// Gets or sets the API keys accepted by the default validator. Ignored when a custom
+    /// <see cref="IApiKeyValidator"/> is registered via <see cref="RegisterApiKeyValidator{T}"/>.
+    /// When null or empty, the default validator accepts all connections.
+    /// </summary>
+    public string[] ApiKeys { get; set; }
 
     /// <summary>
     /// Gets or sets additional assemblies to scan for message handlers.
@@ -21,19 +23,23 @@ public record CommunicationOptions
     public System.Reflection.Assembly[] AdditionalAssemblies { get; set; }
 
     /// <summary>
-    /// Validates a client-provided API key against the configured keys.
-    /// Returns <c>true</c> if no keys are configured (backwards compatible) or if the key matches either the primary or secondary key.
+    /// Registers a custom <see cref="IApiKeyValidator"/> using the concrete type as both interface and implementation.
+    /// If not called, a default validator that checks <see cref="ApiKeys"/> is used.
     /// </summary>
-    /// <param name="apiKey">The API key provided by the client, or <c>null</c> if none was sent.</param>
-    /// <returns><c>true</c> if the connection should be accepted; <c>false</c> if it should be rejected.</returns>
-    public bool ValidateApiKey(string apiKey)
+    public void RegisterApiKeyValidator<TService>()
+        where TService : class, IApiKeyValidator
     {
-        var hasKeys = !string.IsNullOrEmpty(PrimaryApiKey) || !string.IsNullOrEmpty(SecondaryApiKey);
-        if (!hasKeys) return true;
+        _apiKeyValidatorType = (typeof(IApiKeyValidator), typeof(TService));
+    }
 
-        if (string.IsNullOrEmpty(apiKey)) return false;
-
-        return apiKey == PrimaryApiKey || apiKey == SecondaryApiKey;
+    /// <summary>
+    /// Registers a custom <see cref="IApiKeyValidator"/> with a separate interface and implementation type.
+    /// </summary>
+    public void RegisterApiKeyValidator<TInterface, TService>()
+        where TService : class, TInterface
+        where TInterface : class, IApiKeyValidator
+    {
+        _apiKeyValidatorType = (typeof(TInterface), typeof(TService));
     }
 
     /// <summary>

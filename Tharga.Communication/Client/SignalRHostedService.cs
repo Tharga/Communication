@@ -81,12 +81,19 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
             .WithUrl(_serverAddress, options =>
             {
                 options.Headers.Add(Constants.Header.Instance, _instanceService.AgentInstanceKey.ToString());
-                options.Headers.Add(Constants.Header.Machine, Environment.MachineName);
+
+                var machine = !string.IsNullOrEmpty(_options.ClientMachine)
+                    ? _options.ClientMachine
+                    : Environment.MachineName;
+                options.Headers.Add(Constants.Header.Machine, machine);
 
                 var assembly = Assembly.GetEntryAssembly()?.GetName();
-                if (!string.IsNullOrEmpty(assembly?.Name))
+                var type = !string.IsNullOrEmpty(_options.ClientType)
+                    ? _options.ClientType
+                    : assembly?.Name;
+                if (!string.IsNullOrEmpty(type))
                 {
-                    options.Headers.Add(Constants.Header.Type, assembly.Name);
+                    options.Headers.Add(Constants.Header.Type, type);
                 }
 
                 var version = assembly?.Version?.ToString();

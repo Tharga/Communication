@@ -1,106 +1,95 @@
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Tharga.Communication.Server;
 using Xunit;
+using ServerOptions = global::CommunicationOptions;
 
 namespace Tharga.Communication.Tests;
 
 public class ApiKeyValidationTests
 {
     [Fact]
-    public void ValidateApiKey_NoKeysConfigured_AcceptsAll()
+    public async Task DefaultValidator_NoKeysConfigured_AcceptsAll()
     {
-        var options = new CommunicationOptions();
+        var sut = CreateSut(new ServerOptions());
 
-        var result = options.ValidateApiKey(null);
+        var result = await sut.ValidateAsync(null, TestContext.Current.CancellationToken);
 
-        result.Should().BeTrue();
+        result.IsValid.Should().BeTrue();
+        result.KeyId.Should().BeNull();
     }
 
     [Fact]
-    public void ValidateApiKey_NoKeysConfigured_AcceptsAnyKey()
+    public async Task DefaultValidator_NoKeysConfigured_AcceptsAnyKey()
     {
-        var options = new CommunicationOptions();
+        var sut = CreateSut(new ServerOptions());
 
-        var result = options.ValidateApiKey("some-random-key");
+        var result = await sut.ValidateAsync("some-random-key", TestContext.Current.CancellationToken);
 
-        result.Should().BeTrue();
+        result.IsValid.Should().BeTrue();
     }
 
     [Fact]
-    public void ValidateApiKey_PrimaryKeyConfigured_AcceptsMatchingKey()
+    public async Task DefaultValidator_KeyConfigured_AcceptsMatchingKey()
     {
-        var options = new CommunicationOptions { PrimaryApiKey = "my-secret-key" };
+        var sut = CreateSut(new ServerOptions { ApiKeys = ["my-secret-key"] });
 
-        var result = options.ValidateApiKey("my-secret-key");
+        var result = await sut.ValidateAsync("my-secret-key", TestContext.Current.CancellationToken);
 
-        result.Should().BeTrue();
+        result.IsValid.Should().BeTrue();
+        result.KeyId.Should().Be("key-0");
     }
 
     [Fact]
-    public void ValidateApiKey_SecondaryKeyConfigured_AcceptsMatchingKey()
+    public async Task DefaultValidator_MultipleKeysConfigured_AcceptsAnyMatchAndIndexesEach()
     {
-        var options = new CommunicationOptions { SecondaryApiKey = "secondary-key" };
+        var sut = CreateSut(new ServerOptions { ApiKeys = ["primary-key", "secondary-key", "tertiary-key"] });
+        var ct = TestContext.Current.CancellationToken;
 
-        var result = options.ValidateApiKey("secondary-key");
+        var primary = await sut.ValidateAsync("primary-key", ct);
+        var secondary = await sut.ValidateAsync("secondary-key", ct);
+        var tertiary = await sut.ValidateAsync("tertiary-key", ct);
 
-        result.Should().BeTrue();
+        primary.IsValid.Should().BeTrue();
+        primary.KeyId.Should().Be("key-0");
+        secondary.IsValid.Should().BeTrue();
+        secondary.KeyId.Should().Be("key-1");
+        tertiary.IsValid.Should().BeTrue();
+        tertiary.KeyId.Should().Be("key-2");
     }
 
     [Fact]
-    public void ValidateApiKey_BothKeysConfigured_AcceptsPrimaryKey()
+    public async Task DefaultValidator_KeyConfigured_RejectsInvalidKey()
     {
-        var options = new CommunicationOptions
-        {
-            PrimaryApiKey = "primary-key",
-            SecondaryApiKey = "secondary-key"
-        };
+        var sut = CreateSut(new ServerOptions { ApiKeys = ["correct-key"] });
 
-        var result = options.ValidateApiKey("primary-key");
+        var result = await sut.ValidateAsync("wrong-key", TestContext.Current.CancellationToken);
 
-        result.Should().BeTrue();
+        result.IsValid.Should().BeFalse();
     }
 
     [Fact]
-    public void ValidateApiKey_BothKeysConfigured_AcceptsSecondaryKey()
+    public async Task DefaultValidator_KeyConfigured_RejectsMissingKey()
     {
-        var options = new CommunicationOptions
-        {
-            PrimaryApiKey = "primary-key",
-            SecondaryApiKey = "secondary-key"
-        };
+        var sut = CreateSut(new ServerOptions { ApiKeys = ["correct-key"] });
 
-        var result = options.ValidateApiKey("secondary-key");
+        var result = await sut.ValidateAsync(null, TestContext.Current.CancellationToken);
 
-        result.Should().BeTrue();
+        result.IsValid.Should().BeFalse();
     }
 
     [Fact]
-    public void ValidateApiKey_KeyConfigured_RejectsInvalidKey()
+    public async Task DefaultValidator_KeyConfigured_RejectsEmptyKey()
     {
-        var options = new CommunicationOptions { PrimaryApiKey = "correct-key" };
+        var sut = CreateSut(new ServerOptions { ApiKeys = ["correct-key"] });
 
-        var result = options.ValidateApiKey("wrong-key");
+        var result = await sut.ValidateAsync("", TestContext.Current.CancellationToken);
 
-        result.Should().BeFalse();
+        result.IsValid.Should().BeFalse();
     }
 
-    [Fact]
-    public void ValidateApiKey_KeyConfigured_RejectsMissingKey()
+    private static DefaultApiKeyValidator CreateSut(ServerOptions options)
     {
-        var options = new CommunicationOptions { PrimaryApiKey = "correct-key" };
-
-        var result = options.ValidateApiKey(null);
-
-        result.Should().BeFalse();
-    }
-
-    [Fact]
-    public void ValidateApiKey_KeyConfigured_RejectsEmptyKey()
-    {
-        var options = new CommunicationOptions { PrimaryApiKey = "correct-key" };
-
-        var result = options.ValidateApiKey("");
-
-        result.Should().BeFalse();
+        return new DefaultApiKeyValidator(Options.Create(options));
     }
 }

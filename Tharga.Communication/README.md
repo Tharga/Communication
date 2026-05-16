@@ -11,7 +11,7 @@ A SignalR-based communication framework for .NET with built-in message handler p
 - Client connection tracking with metadata
 - Automatic reconnection with configurable delays
 - Extensible client state storage
-- API key authentication with key rotation support
+- Pluggable API key validation with custom validators
 - Subscription-based messaging with type and data-level granularity
 
 ## Getting started
@@ -45,6 +45,71 @@ Add to `appsettings.json`:
 ```csharp
 builder.AddThargaCommunicationClient();
 ```
+
+### API key validation
+
+By default, the server accepts all connections. To require API keys, set `ApiKeys` on the server options:
+
+```csharp
+builder.AddThargaCommunicationServer(options =>
+{
+    options.ApiKeys = ["my-secret-key", "rotation-key"];
+    options.RegisterClientStateService<MyClientStateService>();
+    options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+});
+```
+
+Clients send the key via `CommunicationOptions.ApiKey` (or `appsettings.json`):
+
+```csharp
+builder.AddThargaCommunicationClient(o => o.ApiKey = "my-secret-key");
+```
+
+#### Custom validators
+
+For more advanced scenarios (per-key lookup in a database, per-IP allowlists, integration with Tharga.Platform's API key management, etc.), register an `IApiKeyValidator`:
+
+```csharp
+public class MyApiKeyValidator : IApiKeyValidator
+{
+    private readonly IApiKeyAdministrationService _keys;
+
+    public MyApiKeyValidator(IApiKeyAdministrationService keys) => _keys = keys;
+
+    public async Task<ApiKeyValidationResult> ValidateAsync(string apiKey, CancellationToken ct = default)
+    {
+        var key = await _keys.GetByValueAsync(apiKey, ct);
+        return key is null
+            ? new() { IsValid = false }
+            : new() { IsValid = true, KeyId = key.Id.ToString(), KeyName = key.Name };
+    }
+}
+
+builder.AddThargaCommunicationServer(options =>
+{
+    options.RegisterApiKeyValidator<MyApiKeyValidator>();
+    // …
+});
+```
+
+The validator decides everything — including whether to accept empty keys (return `IsValid = true, KeyId = null` to allow anonymous), or how to identify the matched key. `KeyId` and `KeyName` flow through to `IClientConnectionInfo`, where consumers can use them for admin UIs and audit logs.
+
+> **Need HTTP context?** Inject `IHttpContextAccessor` into your validator if you need access to the request (IP allowlists, custom headers, etc.). The framework intentionally does not pass `HttpContext` to keep `IApiKeyValidator` narrow and testable.
+
+### Client identity
+
+The client sends four self-reported identity headers during connection: `Instance` (Guid generated per process run), `Machine`, `Type` (assembly name), and `Version`. Two of those — `Machine` and `Type` — can be overridden via options:
+
+```csharp
+builder.AddThargaCommunicationClient(o =>
+{
+    o.ServerAddress = "https://localhost:5001";
+    o.ClientType = "monitor-agent";        // override; defaults to entry assembly name
+    o.ClientMachine = "us-east-prod-1";    // override; defaults to Environment.MachineName
+});
+```
+
+Useful when one assembly hosts multiple roles, or when containerized hosts have meaningless hash-based hostnames.
 
 ### Message handlers
 

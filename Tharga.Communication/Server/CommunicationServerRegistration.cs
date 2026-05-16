@@ -52,6 +52,19 @@ public static class CommunicationServerRegistration
         if (o._clientRepositoryType.Service == null) throw new InvalidOperationException($"Client Repository Type has to be provided in {nameof(CommunicationOptions)}.{nameof(CommunicationOptions.RegisterClientRepository)}<>.");
         builder.Services.AddSingleton(o._clientRepositoryType.Interface, o._clientRepositoryType.Service);
 
+        if (o._apiKeyValidatorType.Service == null)
+        {
+            builder.Services.AddSingleton<IApiKeyValidator, DefaultApiKeyValidator>();
+        }
+        else
+        {
+            builder.Services.AddSingleton(o._apiKeyValidatorType.Interface, o._apiKeyValidatorType.Service);
+            if (o._apiKeyValidatorType.Interface != typeof(IApiKeyValidator))
+            {
+                builder.Services.AddSingleton<IApiKeyValidator>(sp => (IApiKeyValidator)sp.GetRequiredService(o._apiKeyValidatorType.Interface));
+            }
+        }
+
         builder.Services.AddSingleton<SubscriptionManager>();
         builder.Services.TryAddSingleton<SubscriptionStateTracker>();
         builder.Services.AddSingleton<IServerCommunication, ServerCommunication>();
