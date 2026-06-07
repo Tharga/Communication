@@ -7,6 +7,8 @@
 
 A SignalR-based communication framework for .NET with built-in message handler patterns for request-response and fire-and-forget messaging between clients and servers.
 
+**Docs:** [communication.tharga.net](https://communication.tharga.net) — guides, API reference, and walkthroughs for messaging, subscriptions, and authentication.
+
 ## Features
 
 - **Fire-and-forget messaging** - Send one-way messages from client to server or server to client(s)
@@ -184,51 +186,14 @@ The server requires registering a `ClientStateServiceBase` implementation and a 
 
 | Property | Description | Default |
 |---|---|---|
-| `PrimaryApiKey` | Primary API key for client authentication | *(none)* |
-| `SecondaryApiKey` | Secondary API key for zero-downtime key rotation | *(none)* |
+| `ApiKeys` | Keys accepted by the default `IApiKeyValidator` | *(none — all connections accepted)* |
 | `AdditionalAssemblies` | Extra assemblies to scan for message handlers | *(none)* |
-
-When no API keys are configured on the server, all connections are accepted (backwards compatible). When one or both keys are set, clients must provide a matching key via the `X-Api-Key` header.
 
 ## Authentication
 
-To secure the SignalR connection with API key authentication:
+The server uses a pluggable `IApiKeyValidator`. The default implementation checks the connecting key against `CommunicationOptions.ApiKeys`. Custom validators (e.g. delegating to a Platform-backed API key store) can be registered via `options.RegisterApiKeyValidator<T>()`.
 
-**Server** — configure one or both keys:
-
-```csharp
-builder.AddThargaCommunicationServer(options =>
-{
-    options.PrimaryApiKey = builder.Configuration["Communication:PrimaryApiKey"];
-    options.SecondaryApiKey = builder.Configuration["Communication:SecondaryApiKey"];
-    options.RegisterClientStateService<MyClientStateService>();
-    options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
-});
-```
-
-**Client** — provide the matching key:
-
-```json
-{
-  "Tharga": {
-    "Communication": {
-      "ServerAddress": "https://localhost:5001",
-      "ApiKey": "your-secret-key"
-    }
-  }
-}
-```
-
-Or via the options callback:
-
-```csharp
-builder.AddThargaCommunicationClient(o =>
-{
-    o.ApiKey = builder.Configuration["Communication:ApiKey"];
-});
-```
-
-API keys can also be configured via User Secrets or environment variables. To rotate keys without downtime, set both `PrimaryApiKey` and `SecondaryApiKey` on the server — either key is accepted.
+See [Authentication](https://communication.tharga.net/articles/authentication.html) on the docs site for the full walkthrough, including a Platform-backed validator example and the `IHttpContextAccessor` injection hint.
 
 ## Handler discovery
 

@@ -8,7 +8,7 @@
     <Company>Thargelion AB</Company>
     <Product>Tharga Communication</Product>
     <Description>SignalR-based client and server communication framework with a built-in message handler pattern for request-response and fire-and-forget messaging.</Description>
-    <PackageIconUrl>http://thargelion.se/wp-content/uploads/2019/11/Thargelion-White-Icon-150.png</PackageIconUrl>
+    <PackageIconUrl>https://thargelion.net/assets/component-communication.png</PackageIconUrl>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageProjectUrl>https://github.com/Tharga/Communication</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -41,7 +41,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.8" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client.Core" Version="10.0.8" />
-    <PackageReference Include="Tharga.Runtime" Version="0.1.12" />
+    <PackageReference Include="Tharga.Runtime" Version="0.1.14" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.300">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
