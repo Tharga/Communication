@@ -418,3 +418,8 @@ FodyWeavers.xsd
 *.msm
 *.msp
 /.claude/settings.local.json
+
+# DocFX generated output
+/docs/_site/
+/docs/api/
+/docs/obj/

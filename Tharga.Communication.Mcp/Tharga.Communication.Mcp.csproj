@@ -8,7 +8,7 @@
     <Company>Thargelion AB</Company>
     <Product>Tharga Communication MCP</Product>
     <Description>Exposes Tharga.Communication runtime data (connected clients, active subscriptions, registered handlers) via MCP (Model Context Protocol). Plugs into Tharga.Mcp.</Description>
-    <PackageIconUrl>http://thargelion.se/wp-content/uploads/2019/11/Thargelion-White-Icon-150.png</PackageIconUrl>
+    <PackageIconUrl>https://thargelion.net/assets/component-communication.png</PackageIconUrl>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageProjectUrl>https://github.com/Tharga/Communication</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
