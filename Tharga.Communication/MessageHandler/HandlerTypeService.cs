@@ -73,6 +73,6 @@ public class HandlerTypeService : IHandlerTypeService
             })
             .Where(x => x != null);
 
-        return postHandlerTypes.Union(sendHandlerTypes).ToDictionary(x => x.PayloadType, x => x); ;
+        return postHandlerTypes.Union(sendHandlerTypes).ToDictionary(x => x.PayloadType, x => x);
     }
 }
