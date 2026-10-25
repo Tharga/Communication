@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Tharga.Communication.Client;
 using Tharga.Communication.Contract;
 using Xunit;
