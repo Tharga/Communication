@@ -33,10 +33,10 @@ public class MessageExecutor : IMessageExecutor
 
         if (connectionId != null)
         {
-            var baseType = handler.GetType().BaseType!;
-            var prop = baseType.GetProperty("ConnectionId", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            var setter = prop!.GetSetMethod(true);
-            setter!.Invoke(handler, [connectionId]);
+            var setter = handler.GetType().BaseType?
+                .GetProperty("ConnectionId", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?
+                .GetSetMethod(true);
+            setter?.Invoke(handler, [connectionId]);
         }
 
         var invokeResult = handlerTypeInfo.HandlerMethod.Invoke(handler, [payload]);

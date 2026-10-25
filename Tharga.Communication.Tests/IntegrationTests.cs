@@ -164,6 +164,27 @@ public class IntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Client_SendMessage_ServerHandlerResponds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = new TaskCompletionSource<RequestWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<RequestWrapper>(Constants.ResponseMessage, payload => response.TrySetResult(payload));
+
+        var wrapper = new RequestWrapper
+        {
+            Type = typeof(EchoRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new EchoRequest("hello"))
+        };
+        await _hubConnection.SendAsync(Constants.SendMessage, wrapper, ct);
+
+        var result = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        result.Payload.Should().NotContain("Error");
+        result.Type.Should().Be(typeof(EchoResponse).AssemblyQualifiedName);
+        JsonSerializer.Deserialize<EchoResponse>(result.Payload)!.Reply.Should().Be("Echo: hello");
+    }
+
+    [Fact]
     public async Task ApiKey_Rejection_ClientCannotConnect()
     {
         // Start a second server with API key required
