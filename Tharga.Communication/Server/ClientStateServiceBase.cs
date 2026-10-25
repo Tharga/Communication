@@ -71,6 +71,8 @@ public abstract class ClientStateServiceBase<T> : ClientStateServiceBase
             Machine = clientConnection.Machine,
             Type = clientConnection.Type,
             Version = clientConnection.Version,
+            KeyId = clientConnection.KeyId,
+            KeyName = clientConnection.KeyName,
             IsConnected = true,
             ConnectTime = DateTime.UtcNow
         };
