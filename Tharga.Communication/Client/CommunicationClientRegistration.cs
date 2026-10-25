@@ -43,7 +43,7 @@ public static class CommunicationClientRegistration
 
         builder.Services.AddSingleton<ClientResponseMediator>();
         builder.Services.TryAddSingleton<SubscriptionStateTracker>();
-        builder.Services.AddSingleton<IClientCommunication, Communication.ClientCommunication>();
+        builder.Services.AddSingleton<IClientCommunication, ClientCommunication>();
         builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
         var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services, o.AdditionalAssemblies);
         builder.Services.AddSingleton<IHandlerTypeService>(_ => new HandlerTypeService(handlerTypes));

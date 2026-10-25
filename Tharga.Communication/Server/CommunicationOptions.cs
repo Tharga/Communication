@@ -3,6 +3,8 @@ using Tharga.Communication.Server;
 /// <summary>
 /// Configuration options for the Tharga.Communication server.
 /// </summary>
+// Published in the global namespace; moving it to Tharga.Communication.Server would break every consumer.
+// ReSharper disable once CheckNamespace
 public record CommunicationOptions
 {
     internal (Type Interface, Type Service) _clientStateServiceType;

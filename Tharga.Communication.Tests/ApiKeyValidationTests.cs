@@ -2,7 +2,7 @@ using AwesomeAssertions;
 using Microsoft.Extensions.Options;
 using Tharga.Communication.Server;
 using Xunit;
-using ServerOptions = global::CommunicationOptions;
+using ServerOptions = CommunicationOptions;
 
 namespace Tharga.Communication.Tests;
 

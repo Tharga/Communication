@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Tharga.Communication.Client;
 using Tharga.Communication.Contract;
 
 namespace Tharga.Communication.Client.Communication;

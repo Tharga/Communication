@@ -8,6 +8,8 @@
 public abstract class PostMessageHandlerBase<T>
 {
     /// <summary>Gets the SignalR connection ID of the client that sent the message.</summary>
+    // Set by MessageExecutor through reflection.
+    // ReSharper disable once UnusedAutoPropertyAccessor.Local
     protected string ConnectionId { get; private set; }
 
     /// <summary>

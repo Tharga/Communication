@@ -19,7 +19,7 @@ public class MessageExecutor : IMessageExecutor
     {
         var shortTypeName = string.Join(",", wrapper.Type.Split(",").Take(2));
         var type = Type.GetType(shortTypeName);
-        type ??= Tharga.Runtime.TypeExtensions.GetType(wrapper.Type) ?? throw new InvalidOperationException($"Cannot find type from string '{wrapper.Type}'.");
+        type ??= Runtime.TypeExtensions.GetType(wrapper.Type) ?? throw new InvalidOperationException($"Cannot find type from string '{wrapper.Type}'.");
 
         var payload = JsonSerializer.Deserialize(wrapper.Payload, type);
 

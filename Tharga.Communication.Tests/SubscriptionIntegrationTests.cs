@@ -1,13 +1,11 @@
 using System.Text.Json;
 using AwesomeAssertions;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.AutoMock;
 using Tharga.Communication.Client;
 using Tharga.Communication.Client.Communication;
 using Tharga.Communication.Contract;
-using Tharga.Communication.MessageHandler;
 using Tharga.Communication.Server;
 using Tharga.Communication.Server.Communication;
 using Xunit;
@@ -24,12 +22,18 @@ public class SubscriptionIntegrationTests
 {
     private readonly ServerCommunication _server;
     private readonly ClientCommunication _client;
-    private readonly SubscriptionStateTracker _tracker;
-    private readonly SubscriptionStateChangedHandler _handler;
     private readonly List<SubscriptionStateChanged> _notifications = new();
 
     public SubscriptionIntegrationTests()
     {
+        // Client side
+        var tracker = new SubscriptionStateTracker();
+        var handler = new SubscriptionStateChangedHandler(tracker);
+
+        var signalR = new Mock<ISignalRHostedService>();
+        signalR.Setup(x => x.State).Returns(HubConnectionState.Connected);
+        _client = new ClientCommunication(signalR.Object, new ClientResponseMediator(), tracker, Options.Create(new Tharga.Communication.Client.CommunicationOptions()), NullLogger<ClientCommunication>.Instance);
+
         // Server side
         var serverMocker = new AutoMocker();
         serverMocker.Use(new SubscriptionManager());
@@ -46,7 +50,7 @@ public class SubscriptionIntegrationTests
                     {
                         _notifications.Add(message);
                         // Simulate client receiving the message
-                        _handler.Handle(message);
+                        handler.Handle(message);
                     }
                 }
             })
@@ -60,14 +64,6 @@ public class SubscriptionIntegrationTests
         serverMocker.Use(hubContext.Object);
 
         _server = serverMocker.CreateInstance<ServerCommunication>();
-
-        // Client side
-        _tracker = new SubscriptionStateTracker();
-        _handler = new SubscriptionStateChangedHandler(_tracker);
-
-        var signalR = new Mock<ISignalRHostedService>();
-        signalR.Setup(x => x.State).Returns(HubConnectionState.Connected);
-        _client = new ClientCommunication(signalR.Object, new ClientResponseMediator(), _tracker, Options.Create(new Tharga.Communication.Client.CommunicationOptions()), Microsoft.Extensions.Logging.Abstractions.NullLogger<ClientCommunication>.Instance);
     }
 
     [Fact]
