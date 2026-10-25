@@ -171,13 +171,17 @@ public class MyClientStateService : ClientStateServiceBase<ClientConnectionInfo>
 
 ### Client options
 
+Every client option except `AdditionalAssemblies` can be set in the `Tharga:Communication` configuration section, for example in `appsettings.json` or as the environment variable `Tharga__Communication__ApiKey`. The options callback of `AddThargaCommunicationClient` runs after the section is read, so a value set in code wins.
+
 | Property | Description | Default |
 |---|---|---|
 | `ServerAddress` | The server URL to connect to | *(required)* |
 | `Pattern` | The hub endpoint pattern | `"hub"` |
 | `ReconnectDelays` | Delays between reconnection attempts | `[0s, 2s, 10s, 30s]` |
 | `ApiKey` | API key sent to the server for authentication | *(none)* |
-| `AdditionalAssemblies` | Extra assemblies to scan for message handlers | *(none)* |
+| `ClientType` | Client identity sent to the server | entry assembly name |
+| `ClientMachine` | Machine name sent to the server | `Environment.MachineName` |
+| `AdditionalAssemblies` | Extra assemblies to scan for message handlers (code only) | *(none)* |
 | `SendMessageTimeout` | Default timeout for request-response messages | `60s` |
 
 ### Server options

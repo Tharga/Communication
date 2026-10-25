@@ -1,13 +1,9 @@
-using System.Text.Json;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Tharga.Communication.Client;
 using Tharga.Communication.Contract;
-using Tharga.Communication.MessageHandler;
 using Tharga.Communication.Server;
 using Xunit;
 using ClientOptions = Tharga.Communication.Client.CommunicationOptions;
@@ -125,7 +121,7 @@ public class ClientIdentityOverrideTests : IAsyncLifetime
 
     private class TestClientStateService : ClientStateServiceBase<ClientConnectionInfo>
     {
-        public TestClientStateService(IServiceProvider sp, IOptions<global::CommunicationOptions> options) : base(sp, options) { }
+        public TestClientStateService(IServiceProvider sp, IOptions<CommunicationOptions> options) : base(sp, options) { }
 
         protected override ClientConnectionInfo Build(IClientConnectionInfo info) => new()
         {

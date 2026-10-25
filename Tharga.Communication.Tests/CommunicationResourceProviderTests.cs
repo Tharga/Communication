@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FluentAssertions;
+using AwesomeAssertions;
 using Moq;
 using Tharga.Communication.Mcp;
 using Tharga.Communication.MessageHandler;

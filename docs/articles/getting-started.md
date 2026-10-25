@@ -56,7 +56,7 @@ builder.AddThargaCommunicationClient();
 builder.Build().Run();
 ```
 
-Configuration values can also be supplied via the options callback:
+Every client option except `AdditionalAssemblies` can be set in this section, including `ApiKey`, `ClientType`, `ClientMachine`, `SendMessageTimeout` and `ReconnectDelays`. Values can also be supplied via the options callback, which runs after the section is read and overrides it:
 
 ```csharp
 builder.AddThargaCommunicationClient(o =>

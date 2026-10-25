@@ -14,24 +14,25 @@ namespace Tharga.Communication.Client;
 /// </summary>
 public static class CommunicationClientRegistration
 {
+    private const string ConfigurationSection = "Tharga:Communication";
+
     /// <summary>
     /// Registers all required client-side communication services including SignalR connection,
     /// message handlers, and the <see cref="Communication.IClientCommunication"/> service.
-    /// Configuration is read from the <c>Tharga:Communication</c> configuration section.
+    /// Every option in <see cref="CommunicationOptions"/> except <see cref="CommunicationOptions.AdditionalAssemblies"/>
+    /// can be set in the <c>Tharga:Communication</c> configuration section. The <paramref name="options"/> callback runs after configuration is bound,
+    /// so values set in code take precedence.
     /// </summary>
     /// <param name="builder">The host application builder.</param>
     /// <param name="options">Optional callback to override configuration values.</param>
     public static void AddThargaCommunicationClient(this IHostApplicationBuilder builder, Action<CommunicationOptions> options = default)
     {
         var configuration = builder.Services.BuildServiceProvider().GetService<IConfiguration>();
-        var value = configuration.GetSection("Tharga:Communication").Get<CommunicationOptions>() ?? new CommunicationOptions();
 
-        var o = new CommunicationOptions
-        {
-            ServerAddress = value.ServerAddress,
-            Pattern = value.Pattern ?? Constants.DefaultPattern,
-            ReconnectDelays = [TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)]
-        };
+        var o = new CommunicationOptions();
+        configuration.GetSection(ConfigurationSection).Bind(o);
+        o.Pattern ??= Constants.DefaultPattern;
+        o.ReconnectDelays ??= [TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)];
         options?.Invoke(o);
         builder.Services.AddSingleton(Options.Create(o));
 
@@ -42,7 +43,7 @@ public static class CommunicationClientRegistration
 
         builder.Services.AddSingleton<ClientResponseMediator>();
         builder.Services.TryAddSingleton<SubscriptionStateTracker>();
-        builder.Services.AddSingleton<IClientCommunication, Communication.ClientCommunication>();
+        builder.Services.AddSingleton<IClientCommunication, ClientCommunication>();
         builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
         var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services, o.AdditionalAssemblies);
         builder.Services.AddSingleton<IHandlerTypeService>(_ => new HandlerTypeService(handlerTypes));

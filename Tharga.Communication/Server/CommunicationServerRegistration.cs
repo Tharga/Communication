@@ -25,9 +25,7 @@ public static class CommunicationServerRegistration
     /// <param name="options">Callback to configure server options and register required services.</param>
     public static void AddThargaCommunicationServer(this WebApplicationBuilder builder, Action<CommunicationOptions> options = default)
     {
-        var o = new CommunicationOptions
-        {
-        };
+        var o = new CommunicationOptions();
         options?.Invoke(o);
         builder.Services.AddSingleton(Options.Create(o));
 
@@ -61,7 +59,7 @@ public static class CommunicationServerRegistration
             builder.Services.AddSingleton(o._apiKeyValidatorType.Interface, o._apiKeyValidatorType.Service);
             if (o._apiKeyValidatorType.Interface != typeof(IApiKeyValidator))
             {
-                builder.Services.AddSingleton<IApiKeyValidator>(sp => (IApiKeyValidator)sp.GetRequiredService(o._apiKeyValidatorType.Interface));
+                builder.Services.AddSingleton(sp => (IApiKeyValidator)sp.GetRequiredService(o._apiKeyValidatorType.Interface));
             }
         }
 

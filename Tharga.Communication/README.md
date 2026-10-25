@@ -46,6 +46,8 @@ Add to `appsettings.json`:
 builder.AddThargaCommunicationClient();
 ```
 
+Every client option except `AdditionalAssemblies` can be set in this section, `ApiKey` included. An options callback passed to `AddThargaCommunicationClient` runs after the section is read, so a value set in code wins.
+
 ### API key validation
 
 By default, the server accepts all connections. To require API keys, set `ApiKeys` on the server options:

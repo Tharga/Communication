@@ -1,0 +1,35 @@
+root = true
+
+[*.cs]
+
+# Private static readonly fields hold values that are conceptually constants but
+# cannot be declared `const` (TimeSpan, JsonSerializerOptions, ...). They are named
+# in PascalCase so they read alongside the real `const` members instead of looking
+# like mutable instance state. Without this, ReSharper's default rule asks for
+# `_camelCase`.
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.severity = suggestion
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.style = pascal_case
+
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static,readonly
+
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# The EventArgs and options types are public API. Consumers read EventArgs
+# properties in their event handlers and set options in their registration code,
+# which ReSharper cannot see from inside this solution, so its `.Global`
+# unused-accessor inspection is a false positive here.
+[Tharga.Communication/**/{*EventArgs,CommunicationOptions}.cs]
+resharper_unused_auto_property_accessor_global_highlighting = none
+
+# The test message records exist to be serialized and sent. Their positional
+# properties are read by System.Text.Json, not by the test code.
+[Tharga.Communication.Tests/**.cs]
+resharper_not_accessed_positional_property_local_highlighting = none
+resharper_not_accessed_positional_property_global_highlighting = none

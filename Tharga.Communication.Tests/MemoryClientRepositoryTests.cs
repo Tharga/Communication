@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Tharga.Communication.Server;
 using Xunit;
 
@@ -55,6 +55,8 @@ public class MemoryClientRepositoryTests
     public async Task UpsertAsync_SameInstance_UpdatesExisting()
     {
         var instance = Guid.NewGuid();
+        // Spelled out to contrast with the updated connection id below.
+        // ReSharper disable once RedundantArgumentDefaultValue
         var original = CreateClient(instance, "conn-1");
         var updated = CreateClient(instance, "conn-2");
 

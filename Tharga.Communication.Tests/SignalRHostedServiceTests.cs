@@ -1,5 +1,4 @@
-using FluentAssertions;
-using Microsoft.Extensions.DependencyInjection;
+using AwesomeAssertions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
