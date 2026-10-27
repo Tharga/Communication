@@ -190,4 +190,6 @@ clientCommunication.SubscriptionChanged += (sender, e) =>
 - **Type-based** (`SubscribeAsync<T>()` without key): wildcard — `HasSubscribers<T>("anyKey")` returns `true`.
 - **Data-based** (`SubscribeAsync<T>("1")` with key): specific — only `HasSubscribers<T>("1")` returns `true`.
 
+A client that connects or reconnects is sent the subscriptions that are already active, so it sees subscriptions made before it connected.
+
 For full documentation and examples, see the [GitHub repository](https://github.com/Tharga/Communication).

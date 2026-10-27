@@ -1,5 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Tharga.Communication.Mcp;
 using Tharga.Communication.Server;
 using Xunit;
 
@@ -48,6 +50,60 @@ public class CommunicationServerRegistrationTests
 
         act.Should().NotThrow();
     }
+
+    [Fact]
+    public void AddThargaCommunicationServer_ClientStateServiceBase_ResolvesRegisteredService()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.AddThargaCommunicationServer(options =>
+        {
+            options.RegisterClientStateService<TestClientStateService>();
+            options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+        });
+        using var app = builder.Build();
+
+        var baseService = app.Services.GetService<ClientStateServiceBase>();
+
+        baseService.Should().NotBeNull();
+        baseService.Should().BeSameAs(app.Services.GetRequiredService<TestClientStateService>());
+    }
+
+    [Fact]
+    public void AddThargaCommunicationServer_WithInterface_ClientStateServiceBase_ResolvesRegisteredService()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.AddThargaCommunicationServer(options =>
+        {
+            options.RegisterClientStateService<ITestClientStateService, TestClientStateServiceWithInterface>();
+            options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+        });
+        using var app = builder.Build();
+
+        var baseService = app.Services.GetService<ClientStateServiceBase>();
+
+        baseService.Should().NotBeNull();
+        baseService.Should().BeSameAs(app.Services.GetRequiredService<ITestClientStateService>());
+    }
+
+    [Fact]
+    public void AddThargaCommunicationServer_McpResourceProvider_CanBeActivated()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.AddThargaCommunicationServer(options =>
+        {
+            options.RegisterClientStateService<TestClientStateService>();
+            options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+        });
+        using var app = builder.Build();
+
+        var act = () => ActivatorUtilities.CreateInstance<CommunicationResourceProvider>(app.Services);
+
+        act.Should().NotThrow();
+    }
+
+    private interface ITestClientStateService;
+
+    private class TestClientStateServiceWithInterface : TestClientStateService, ITestClientStateService;
 
     private class TestClientStateService : ClientStateServiceBase
     {

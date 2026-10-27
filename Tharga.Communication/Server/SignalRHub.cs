@@ -59,6 +59,18 @@ internal sealed class SignalRHub : Hub
 
         await _clientStateService.ConnectAsync(clientConnection);
 
+        if (_serverCommunication is ServerCommunication serverCommunication)
+        {
+            try
+            {
+                await serverCommunication.SendActiveSubscriptionsAsync(Context.ConnectionId);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "Failed to send active subscriptions to client '{connectionId}'.", Context.ConnectionId);
+            }
+        }
+
         await base.OnConnectedAsync();
     }
 

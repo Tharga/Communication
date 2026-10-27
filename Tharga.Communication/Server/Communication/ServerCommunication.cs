@@ -126,6 +126,19 @@ internal class ServerCommunication : IServerCommunication
         return _subscriptionManager.GetSubscriptions();
     }
 
+    /// <summary>
+    /// Tells one client about every subscription that is currently active.
+    /// Uses the same <see cref="SubscriptionStateChanged"/> message as the 0↔1 notifications,
+    /// so clients of any version apply it.
+    /// </summary>
+    internal async Task SendActiveSubscriptionsAsync(string connectionId)
+    {
+        foreach (var (topic, key) in _subscriptionManager.GetActiveTopics())
+        {
+            await PostAsync(connectionId, new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = true });
+        }
+    }
+
     internal async Task UnsubscribeAsync(string topic, string key)
     {
         var isLast = _subscriptionManager.Unsubscribe(topic, key);
