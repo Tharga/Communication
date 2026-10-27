@@ -46,6 +46,10 @@ public static class CommunicationServerRegistration
 
         if (o._clientStateServiceType.Service == null) throw new InvalidOperationException($"Client Service Type has to be provided in {nameof(CommunicationOptions)}.{nameof(CommunicationOptions.RegisterClientStateService)}<>.");
         builder.Services.AddSingleton(o._clientStateServiceType.Interface, o._clientStateServiceType.Service);
+        if (o._clientStateServiceType.Interface != typeof(ClientStateServiceBase))
+        {
+            builder.Services.AddSingleton(sp => (ClientStateServiceBase)sp.GetRequiredService(o._clientStateServiceType.Interface));
+        }
 
         if (o._clientRepositoryType.Service == null) throw new InvalidOperationException($"Client Repository Type has to be provided in {nameof(CommunicationOptions)}.{nameof(CommunicationOptions.RegisterClientRepository)}<>.");
         builder.Services.AddSingleton(o._clientRepositoryType.Interface, o._clientRepositoryType.Service);
