@@ -102,6 +102,20 @@ public class SubscriptionManagerTests
     }
 
     [Fact]
+    public void GetActiveTopics_ReturnsTopicAndKeySeparately()
+    {
+        _sut.Subscribe("FarmDetailsDto", "1");
+        _sut.Subscribe("FarmDetailsDto", "1");
+        _sut.Subscribe("CollectionDto");
+        _sut.Subscribe("RemovedDto");
+        _sut.Unsubscribe("RemovedDto");
+
+        var topics = _sut.GetActiveTopics();
+
+        topics.Should().BeEquivalentTo(new[] { ("FarmDetailsDto", "1"), ("CollectionDto", (string)null) });
+    }
+
+    [Fact]
     public void BuildKey_WithoutKey_ReturnsTopicOnly()
     {
         var key = SubscriptionManager.BuildKey("FarmDetailsDto", null);

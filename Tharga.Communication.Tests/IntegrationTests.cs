@@ -258,4 +258,45 @@ public class IntegrationTests : IAsyncLifetime
 
         clients.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task ClientConnectingAfterSubscribe_ReceivesActiveSubscriptions()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var serverComm = _app.Services.GetRequiredService<IServerCommunication>();
+        await using var wildcard = await serverComm.SubscribeAsync<FireAndForgetMessage>();
+        await using var keyed = await serverComm.SubscribeAsync<EchoRequest>("42");
+
+        var tracker = new Tharga.Communication.Client.SubscriptionStateTracker();
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lateConnection = new HubConnectionBuilder()
+            .WithUrl($"{_serverUrl}/hub", options =>
+            {
+                options.Headers.Add(Constants.Header.Instance, Guid.NewGuid().ToString());
+                options.Headers.Add(Constants.Header.Machine, "late-machine");
+            })
+            .Build();
+        lateConnection.On<RequestWrapper>(Constants.PostMessage, payload =>
+        {
+            tracker.Update(JsonSerializer.Deserialize<SubscriptionStateChanged>(payload.Payload)!);
+            if (tracker.HasSubscribers(typeof(FireAndForgetMessage).FullName!) && tracker.HasSubscribers(typeof(EchoRequest).FullName!, "42"))
+            {
+                received.TrySetResult();
+            }
+        });
+
+        try
+        {
+            await lateConnection.StartAsync(ct);
+
+            var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(5), ct));
+
+            completed.Should().Be(received.Task, "a client that connects after a subscription was made must be told about it");
+            tracker.HasSubscribers(typeof(EchoRequest).FullName!, "43").Should().BeFalse();
+        }
+        finally
+        {
+            await lateConnection.DisposeAsync();
+        }
+    }
 }

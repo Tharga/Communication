@@ -8,7 +8,7 @@ namespace Tharga.Communication.Server;
 /// </summary>
 internal class SubscriptionManager
 {
-    private readonly ConcurrentDictionary<string, int> _subscriptions = new();
+    private readonly ConcurrentDictionary<(string Topic, string Key), int> _subscriptions = new();
 
     /// <summary>
     /// Increments the subscriber count for the given topic/key.
@@ -16,7 +16,7 @@ internal class SubscriptionManager
     /// <returns><c>true</c> if the count crossed from 0 to 1 (first subscriber).</returns>
     public bool Subscribe(string topic, string key = null)
     {
-        var subscriptionKey = BuildKey(topic, key);
+        var subscriptionKey = (topic, key);
         var newCount = _subscriptions.AddOrUpdate(subscriptionKey, 1, (_, count) => count + 1);
         return newCount == 1;
     }
@@ -27,7 +27,7 @@ internal class SubscriptionManager
     /// <returns><c>true</c> if the count crossed from 1 to 0 (last subscriber left).</returns>
     public bool Unsubscribe(string topic, string key = null)
     {
-        var subscriptionKey = BuildKey(topic, key);
+        var subscriptionKey = (topic, key);
         var newCount = _subscriptions.AddOrUpdate(subscriptionKey, 0, (_, count) => Math.Max(0, count - 1));
         if (newCount == 0)
         {
@@ -42,7 +42,15 @@ internal class SubscriptionManager
     /// </summary>
     public IReadOnlyDictionary<string, int> GetSubscriptions()
     {
-        return _subscriptions.ToDictionary(x => x.Key, x => x.Value);
+        return _subscriptions.ToDictionary(x => BuildKey(x.Key.Topic, x.Key.Key), x => x.Value);
+    }
+
+    /// <summary>
+    /// Returns the topic/key combinations that currently have at least one subscriber.
+    /// </summary>
+    public IReadOnlyList<(string Topic, string Key)> GetActiveTopics()
+    {
+        return _subscriptions.Where(x => x.Value > 0).Select(x => x.Key).ToArray();
     }
 
     internal static string BuildKey(string topic, string key)
