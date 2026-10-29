@@ -99,6 +99,8 @@ public class PingHandler : SendMessageHandlerBase<PingRequest, PingResponse>
 }
 ```
 
+Each incoming message is handled in its own dependency injection scope, so a handler can depend on scoped services such as an EF Core `DbContext`. The scope is disposed when the handler completes.
+
 ### Sending messages
 
 From the client:

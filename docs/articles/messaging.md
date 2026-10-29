@@ -67,6 +67,8 @@ public class PingHandler : SendMessageHandlerBase<PingRequest, PingResponse>
 
 Handlers can sit in either the server or client project, depending on which side initiates the conversation.
 
+Each incoming message is handled in its own dependency injection scope, on the client as well as on the server. A handler can depend on scoped services such as an EF Core `DbContext`, and the scope, with any disposable services in it, is disposed when the handler completes.
+
 ## Loading handlers from additional assemblies
 
 By default the assembly scan runs against the loaded assembly set. If your handlers live in a sibling package that wouldn't otherwise be scanned, opt them in:
