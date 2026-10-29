@@ -77,6 +77,11 @@ internal class ClientCommunication : IClientCommunication
             }
 
             var responseWrapper = await pending.Response.Task;
+            if (ErrorResponse.TryGetError(responseWrapper, requestWrapper, typeof(TResponse), out var error))
+            {
+                throw new RemoteRequestException($"The server could not handle {typeof(TRequest).Name}: {error}");
+            }
+
             return JsonSerializer.Deserialize<TResponse>(responseWrapper.Payload);
         }
         finally

@@ -262,6 +262,48 @@ public class IntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Server_SendMessageAsync_ClientOnThePreviousWireFormatReportsAnError_ReturnsAFailedResponse()
+    {
+        _hubConnection.On<WireCompatibilityTests.PreviousWireWrapper>(Constants.SendMessage, async payload =>
+        {
+            await _hubConnection.SendAsync(Constants.ResponseMessage, payload with
+            {
+                Payload = JsonSerializer.Serialize(new { Error = "Handler failure." })
+            });
+        });
+
+        var serverComm = _app.Services.GetRequiredService<IServerCommunication>();
+        var result = await serverComm.SendMessageAsync<EchoRequest, EchoResponse>(
+            _hubConnection.ConnectionId!, new EchoRequest("hello"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("REMOTE_ERROR");
+        result.Message.Should().Be("Handler failure.");
+    }
+
+    [Fact]
+    public async Task Client_SendMessage_ServerCannotHandleIt_RespondsWithAnErrorInTheShapeEarlierVersionsExpect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = new TaskCompletionSource<RequestWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<RequestWrapper>(Constants.ResponseMessage, payload => response.TrySetResult(payload));
+        var request = new RequestWrapper
+        {
+            Type = typeof(UnhandledRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new UnhandledRequest())
+        };
+
+        await _hubConnection.SendAsync(Constants.SendMessage, request, ct);
+
+        var result = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        result.Type.Should().Be(request.Type);
+        JsonSerializer.Deserialize<Dictionary<string, string>>(result.Payload).Should().ContainKey("Error").WhoseValue.Should().Contain("Cannot find handler");
+        result.Error.Should().Contain("Cannot find handler");
+    }
+
+    public record UnhandledRequest;
+
+    [Fact]
     public async Task ApiKey_Rejection_ClientCannotConnect()
     {
         // Start a second server with API key required

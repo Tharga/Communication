@@ -37,6 +37,15 @@ public class ClientServerIntegrationTests : IAsyncLifetime
         }
     }
 
+    public record FailingRequest;
+    public record FailingReply(string Text);
+    public record UnhandledRequest;
+
+    public class FailingHandler : SendMessageHandlerBase<FailingRequest, FailingReply>
+    {
+        public override Task<FailingReply> Handle(FailingRequest message) => throw new InvalidOperationException("Handler failure.");
+    }
+
     public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
@@ -122,6 +131,43 @@ public class ClientServerIntegrationTests : IAsyncLifetime
         timedOut.Code.Should().Be("TIMEOUT");
         reply.IsSuccess.Should().BeTrue();
         reply.Value.Text.Should().Be("second");
+    }
+
+    [Fact]
+    public async Task Server_SendMessageAsync_ClientHandlerThrows_ReturnsAFailedResponse()
+    {
+        await StartClientAsync();
+        var serverCommunication = _server.Services.GetRequiredService<IServerCommunication>();
+
+        var response = await serverCommunication.SendMessageAsync<FailingRequest, FailingReply>(await GetClientConnectionIdAsync(), new FailingRequest(), WaitLimit);
+
+        response.IsSuccess.Should().BeFalse();
+        response.Code.Should().Be("REMOTE_ERROR");
+        response.Message.Should().Be("Handler failure.");
+    }
+
+    [Fact]
+    public async Task Server_SendMessageAsync_ClientHasNoHandler_ReturnsAFailedResponse()
+    {
+        await StartClientAsync();
+        var serverCommunication = _server.Services.GetRequiredService<IServerCommunication>();
+
+        var response = await serverCommunication.SendMessageAsync<UnhandledRequest, FailingReply>(await GetClientConnectionIdAsync(), new UnhandledRequest(), WaitLimit);
+
+        response.IsSuccess.Should().BeFalse();
+        response.Code.Should().Be("REMOTE_ERROR");
+        response.Message.Should().Contain("Cannot find handler");
+    }
+
+    [Fact]
+    public async Task Client_SendMessage_ServerHandlerThrows_Throws()
+    {
+        var client = await StartClientAsync();
+        var clientCommunication = client.Services.GetRequiredService<IClientCommunication>();
+
+        var act = () => clientCommunication.SendMessage<FailingRequest, FailingReply>(new FailingRequest(), WaitLimit);
+
+        await act.Should().ThrowAsync<RemoteRequestException>().WithMessage("*Handler failure.*");
     }
 
     private async Task<string> GetClientConnectionIdAsync()

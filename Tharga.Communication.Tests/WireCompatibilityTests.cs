@@ -27,7 +27,7 @@ public class WireCompatibilityTests
     [MemberData(nameof(ReaderOptions))]
     public void CurrentWrapper_CanBeReadByAPreviousVersion(string readerOptions)
     {
-        var json = JsonSerializer.Serialize(new RequestWrapper { Type = "type", Payload = "payload", RequestId = "request" }, HubProtocolOptions);
+        var json = JsonSerializer.Serialize(new RequestWrapper { Type = "type", Payload = "payload", RequestId = "request", Error = "error" }, HubProtocolOptions);
 
         var read = JsonSerializer.Deserialize<PreviousWireWrapper>(json, Options(readerOptions));
 
@@ -44,6 +44,7 @@ public class WireCompatibilityTests
 
         read.Should().Be(new RequestWrapper { Type = "type", Payload = "payload" });
         read.RequestId.Should().BeNull();
+        read.Error.Should().BeNull();
     }
 
     private static JsonSerializerOptions Options(string name) => name == nameof(HubProtocolOptions) ? HubProtocolOptions : HubMethodOptions;

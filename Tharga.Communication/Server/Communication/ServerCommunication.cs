@@ -105,6 +105,11 @@ internal class ServerCommunication : IServerCommunication
             }
 
             var responseWrapper = await tcs.Task;
+            if (ErrorResponse.TryGetError(responseWrapper, requestWrapper, typeof(TResponse), out var error))
+            {
+                return Response<TResponse>.Fail("REMOTE_ERROR", error);
+            }
+
             var value = JsonSerializer.Deserialize<TResponse>(responseWrapper.Payload);
 
             return new Response<TResponse>(value);

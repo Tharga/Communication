@@ -40,6 +40,7 @@ A failed response carries one of these codes:
 |---|---|
 | `TIMEOUT` | No response arrived within the timeout. |
 | `DISCONNECTED` | The client disconnected before it responded. Before 1.2 this waited for the full timeout and reported `TIMEOUT`. |
+| `REMOTE_ERROR` | The client could not handle the request: its handler threw, or it has no handler for the request type. `Message` holds the reason. Before 1.2 this came back as a success with default values. |
 
 ```csharp
 // Client → server, expecting a response
@@ -48,6 +49,8 @@ var response = await clientCommunication.SendMessage<EchoRequest, EchoResponse>(
 ```
 
 The default client-side timeout is configurable via `CommunicationOptions.SendMessageTimeout`.
+
+On the client, `SendMessage` throws `TimeoutException` when no response arrives in time, and `RemoteRequestException` when the server could not handle the request (its handler threw, or it has no handler for the request type). Before 1.2 a failed request returned a response with default values instead.
 
 Each request carries a request id, which the receiving side copies into its response. A response that arrives after its request timed out is logged and dropped, instead of being returned as the answer to the next request. Before 1.2 it was returned for the next request. Peers on 1.1 and earlier send no request id; their responses are still accepted and matched the way they were before, so mixed versions keep working, but the protection against late responses needs both sides on 1.2 or later.
 

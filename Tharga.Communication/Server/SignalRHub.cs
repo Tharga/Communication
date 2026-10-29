@@ -116,11 +116,7 @@ internal sealed class SignalRHub : Hub
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to handle SendMessage for type '{Type}' from client '{ConnectionId}'.", wrapper.Type, connectionId);
-            var errorResponse = wrapper with
-            {
-                Payload = JsonSerializer.Serialize(new { Error = ex.Message })
-            };
-            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, errorResponse);
+            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, ErrorResponse.Create(wrapper, ex));
         }
     }
 

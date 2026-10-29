@@ -164,11 +164,7 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to handle SendMessage for type '{Type}'.", payload.Type);
-                    var errorResponse = payload with
-                    {
-                        Payload = System.Text.Json.JsonSerializer.Serialize(new { Error = ex.Message })
-                    };
-                    await _connection.SendAsync(Constants.ResponseMessage, errorResponse);
+                    await _connection.SendAsync(Constants.ResponseMessage, ErrorResponse.Create(payload, ex));
                 }
             });
         });

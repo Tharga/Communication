@@ -214,6 +214,64 @@ public class ServerCommunicationTests
         (await second).Value.Result.Should().Be("second");
     }
 
+    [Fact]
+    public async Task SendMessageAsync_ClientReportsAnError_ReturnsAFailedResponse()
+    {
+        RespondWith(new RequestWrapper
+        {
+            Type = typeof(TestRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new { Error = "Handler failure." }),
+            Error = "Handler failure."
+        });
+
+        var result = await _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("REMOTE_ERROR");
+        result.Message.Should().Be("Handler failure.");
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ClientOnAnEarlierVersionReportsAnError_ReturnsAFailedResponse()
+    {
+        RespondWith(new RequestWrapper
+        {
+            Type = typeof(TestRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new { Error = "Handler failure." })
+        });
+
+        var result = await _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("REMOTE_ERROR");
+        result.Message.Should().Be("Handler failure.");
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ResponseWithAnErrorProperty_IsASuccess()
+    {
+        RespondWith(new RequestWrapper
+        {
+            Type = typeof(ErrorReport).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new ErrorReport("Disk full."))
+        });
+
+        var result = await _sut.SendMessageAsync<TestRequest, ErrorReport>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Error.Should().Be("Disk full.");
+    }
+
+    public record ErrorReport(string Error);
+
+    private void RespondWith(RequestWrapper response)
+    {
+        _clientProxy
+            .Setup(x => x.SendCoreAsync(Constants.SendMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((_, _, _) => _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", response)))
+            .Returns(Task.CompletedTask);
+    }
+
     private static RequestWrapper Reply(string requestId, string result) => new()
     {
         Type = typeof(TestResponse).AssemblyQualifiedName!,

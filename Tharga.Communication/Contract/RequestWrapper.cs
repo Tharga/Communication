@@ -19,6 +19,12 @@ public record RequestWrapper : IMessageWrapper
     /// </summary>
     public string RequestId { get; init; }
 
+    /// <summary>
+    /// Set on a response when the receiver could not handle the request, with the reason as message;
+    /// <c>null</c> otherwise. Peers older than version 1.2 do not set it.
+    /// </summary>
+    public string Error { get; init; }
+
     internal IMessageWrapper Respond(IMessageWrapper response)
     {
         if (RequestId == null || response == null) return response;

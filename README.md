@@ -144,6 +144,18 @@ public class MyServerService(IServerCommunication server)
 }
 ```
 
+### When a request fails
+
+On the server, `SendMessageAsync` returns a `Response<T>` with `IsSuccess = false` and a `Code`:
+
+- `TIMEOUT` — no response arrived within the timeout;
+- `DISCONNECTED` — the client disconnected before it responded;
+- `REMOTE_ERROR` — the client could not handle the request (its handler threw, or it has no handler for the request type); `Message` holds the reason.
+
+On the client, `SendMessage` throws `TimeoutException` when no response arrives in time, and `RemoteRequestException` when the server could not handle the request.
+
+**Changed in 1.2:** a request whose handler failed used to come back as a successful response with default values, and a client that disconnected was reported as `TIMEOUT` only after the full timeout. A response that arrives after its request timed out is now dropped instead of being returned for the next request; this needs both sides on 1.2 or later, and mixed versions keep working.
+
 ### Implementing a client state service
 
 ```csharp
@@ -224,7 +236,7 @@ builder.AddThargaCommunicationServer(options =>
 });
 ```
 
-If a client receives a `SendMessage` for a type with no registered handler, it immediately returns an error response to the server instead of silently timing out.
+If a client receives a `SendMessage` for a type with no registered handler, it immediately returns an error response to the server instead of silently timing out. The server reports it as a failed `Response` with `Code` `REMOTE_ERROR`.
 
 ## License
 

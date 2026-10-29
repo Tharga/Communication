@@ -33,7 +33,11 @@ public interface IServerCommunication
     /// <param name="connectionId">The SignalR connection ID of the target client.</param>
     /// <param name="message">The request payload.</param>
     /// <param name="timeout">Optional timeout. Defaults to 60 seconds.</param>
-    /// <returns>A <see cref="Response{T}"/> containing the result or failure information.</returns>
+    /// <returns>
+    /// A <see cref="Response{T}"/> containing the result or failure information. A failed response has <see cref="Response{T}.Code"/>
+    /// <c>TIMEOUT</c> (no response in time), <c>DISCONNECTED</c> (the client disconnected before it responded) or
+    /// <c>REMOTE_ERROR</c> (the client could not handle the request; <see cref="Response{T}.Message"/> holds the reason).
+    /// </returns>
     Task<Response<TResponse>> SendMessageAsync<TRequest, TResponse>(string connectionId, TRequest message, TimeSpan? timeout = null);
 
     /// <summary>

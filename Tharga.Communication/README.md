@@ -130,6 +130,8 @@ public class PingHandler : SendMessageHandlerBase<PingRequest, PingResponse>
 }
 ```
 
+When a request-response message fails, the server's `SendMessageAsync` returns a failed `Response` with `Code` `TIMEOUT`, `DISCONNECTED` or `REMOTE_ERROR`, and the client's `SendMessage` throws `TimeoutException` or `RemoteRequestException`. Changed in 1.2: a failed handler used to come back as a successful response with default values.
+
 ### Subscription messaging
 
 Subscriptions allow the server to signal clients whether anyone is consuming a particular message type, so clients can skip sending data when no dashboard or consumer is active.

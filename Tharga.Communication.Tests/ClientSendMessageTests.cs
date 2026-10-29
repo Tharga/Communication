@@ -102,6 +102,53 @@ public class ClientSendMessageTests
         (await second).Reply.Should().Be("second");
     }
 
+    [Fact]
+    public async Task SendMessage_ServerReportsAnError_ThrowsRemoteRequestException()
+    {
+        var sending = _sut.SendMessage<PingRequest, PingResponse>(new PingRequest("hello"));
+
+        _mediator.Deliver(new RequestWrapper
+        {
+            Type = typeof(PingRequest).AssemblyQualifiedName!,
+            Payload = System.Text.Json.JsonSerializer.Serialize(new { Error = "Handler failure." }),
+            Error = "Handler failure."
+        });
+
+        var act = () => sending;
+        await act.Should().ThrowAsync<RemoteRequestException>().WithMessage("*Handler failure.*");
+    }
+
+    [Fact]
+    public async Task SendMessage_ServerOnAnEarlierVersionReportsAnError_ThrowsRemoteRequestException()
+    {
+        var sending = _sut.SendMessage<PingRequest, PingResponse>(new PingRequest("hello"));
+
+        _mediator.Deliver(new RequestWrapper
+        {
+            Type = typeof(PingRequest).AssemblyQualifiedName!,
+            Payload = System.Text.Json.JsonSerializer.Serialize(new { Error = "Handler failure." })
+        });
+
+        var act = () => sending;
+        await act.Should().ThrowAsync<RemoteRequestException>().WithMessage("*Handler failure.*");
+    }
+
+    [Fact]
+    public async Task SendMessage_ResponseWithAnErrorProperty_IsReturnedAsTheResponse()
+    {
+        var sending = _sut.SendMessage<PingRequest, ErrorReport>(new PingRequest("hello"));
+
+        _mediator.Deliver(new RequestWrapper
+        {
+            Type = typeof(ErrorReport).AssemblyQualifiedName!,
+            Payload = System.Text.Json.JsonSerializer.Serialize(new ErrorReport("Disk full."))
+        });
+
+        (await sending).Error.Should().Be("Disk full.");
+    }
+
+    public record ErrorReport(string Error);
+
     private static RequestWrapper Reply(string requestId, string reply) => new()
     {
         Type = typeof(PingResponse).AssemblyQualifiedName!,
