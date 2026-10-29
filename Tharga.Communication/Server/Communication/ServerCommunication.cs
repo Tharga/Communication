@@ -16,6 +16,8 @@ internal class ServerCommunication : IServerCommunication
     private readonly ILogger<ServerCommunication> _logger;
     private readonly SubscriptionManager _subscriptionManager;
     private readonly ConcurrentDictionary<string, (TaskCompletionSource<IMessageWrapper> Request, DateTime CreateDate)> _pendingRequests = new();
+    // Held across the announcement too, so clients receive announcements in the order of the changes.
+    private readonly SemaphoreSlim _subscriptionLock = new(1, 1);
 
     public ServerCommunication(IMessageExecutor messageExecutor, IHubContext<SignalRHub> signalRHub, SubscriptionManager subscriptionManager, ILogger<ServerCommunication> logger)
     {
@@ -111,13 +113,7 @@ internal class ServerCommunication : IServerCommunication
     public async Task<IAsyncDisposable> SubscribeAsync<T>(string key = null)
     {
         var topic = typeof(T).FullName!;
-        var isFirst = _subscriptionManager.Subscribe(topic, key);
-
-        if (isFirst)
-        {
-            await PostToAllAsync(new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = true });
-        }
-
+        await ChangeSubscriptionAsync(() => _subscriptionManager.Subscribe(topic, key), topic, key, true);
         return new SubscriptionHandle(this, topic, key);
     }
 
@@ -139,13 +135,24 @@ internal class ServerCommunication : IServerCommunication
         }
     }
 
-    internal async Task UnsubscribeAsync(string topic, string key)
+    internal Task UnsubscribeAsync(string topic, string key)
     {
-        var isLast = _subscriptionManager.Unsubscribe(topic, key);
+        return ChangeSubscriptionAsync(() => _subscriptionManager.Unsubscribe(topic, key), topic, key, false);
+    }
 
-        if (isLast)
+    private async Task ChangeSubscriptionAsync(Func<bool> crossesZero, string topic, string key, bool hasSubscribers)
+    {
+        await _subscriptionLock.WaitAsync();
+        try
         {
-            await PostToAllAsync(new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = false });
+            if (crossesZero())
+            {
+                await PostToAllAsync(new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = hasSubscribers });
+            }
+        }
+        finally
+        {
+            _subscriptionLock.Release();
         }
     }
 

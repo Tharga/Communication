@@ -139,10 +139,17 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
 
         _connection.On<RequestWrapper>(Constants.PostMessage, payload =>
         {
+            if (IsSubscriptionStateChanged(payload))
+            {
+                // The connection awaits this before dispatching the next message, so changes apply in the order sent.
+                return ApplySubscriptionStateChangedAsync(payload);
+            }
+
             Task.Run(() =>
             {
                 _messageExecutor.ExecuteAsync(null, payload);
             });
+            return Task.CompletedTask;
         });
 
         _connection.On<RequestWrapper>(Constants.SendMessage, payload =>
@@ -170,6 +177,23 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
         {
             _responseMediator.Deliver(payload);
         });
+    }
+
+    private static bool IsSubscriptionStateChanged(RequestWrapper payload)
+    {
+        return payload.Type?.Split(',')[0].Trim() == typeof(SubscriptionStateChanged).FullName;
+    }
+
+    private async Task ApplySubscriptionStateChangedAsync(RequestWrapper payload)
+    {
+        try
+        {
+            await _messageExecutor.ExecuteAsync(null, payload);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to apply subscription state change.");
+        }
     }
 
     private async Task StartConnectionAsync(CancellationToken cancellationToken)

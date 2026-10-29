@@ -46,7 +46,7 @@ public class IntegrationTests : IAsyncLifetime
     }
 
     // Minimal client state service for testing
-    private class TestClientStateService : ClientStateServiceBase<ClientConnectionInfo>
+    internal class TestClientStateService : ClientStateServiceBase<ClientConnectionInfo>
     {
         public TestClientStateService(IServiceProvider sp, IOptions<CommunicationOptions> options)
             : base(sp, options) { }
