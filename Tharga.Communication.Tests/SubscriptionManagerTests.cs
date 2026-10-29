@@ -77,6 +77,23 @@ public class SubscriptionManagerTests
     }
 
     [Fact]
+    public void Unsubscribe_OverlappingWithSubscribe_KeepsTheRemainingSubscriber()
+    {
+        for (var iteration = 0; iteration < 20_000; iteration++)
+        {
+            var sut = new SubscriptionManager();
+            sut.Subscribe("FarmDetailsDto", "1");
+            using var start = new Barrier(2);
+
+            Parallel.Invoke(
+                () => { start.SignalAndWait(); sut.Unsubscribe("FarmDetailsDto", "1"); },
+                () => { start.SignalAndWait(); sut.Subscribe("FarmDetailsDto", "1"); });
+
+            sut.GetSubscriptions().Should().Contain("FarmDetailsDto:1", 1, $"one subscriber remains after iteration {iteration}");
+        }
+    }
+
+    [Fact]
     public void GetSubscriptions_ReturnsActiveTopicsAndCounts()
     {
         _sut.Subscribe("FarmDetailsDto", "1");

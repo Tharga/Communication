@@ -125,6 +125,30 @@ public class ServerCommunicationSubscriptionTests
         subs[expectedKey2].Should().Be(1);
     }
 
+    [Fact]
+    public async Task SubscribeWhileTheLastUnsubscribeIsBeingAnnounced_AnnouncesTheSubscriberLast()
+    {
+        var announced = new List<bool>();
+        var releaseUnsubscribeAnnouncement = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _allClients
+            .Setup(x => x.SendCoreAsync(Constants.PostMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Returns<string, object[], CancellationToken>(async (_, args, _) =>
+            {
+                var message = JsonSerializer.Deserialize<SubscriptionStateChanged>(((RequestWrapper)args[0]).Payload)!;
+                if (!message.HasSubscribers) await releaseUnsubscribeAnnouncement.Task;
+                lock (announced) announced.Add(message.HasSubscribers);
+            });
+
+        var first = await _sut.SubscribeAsync<FakeMessage>("1");
+        var unsubscribe = first.DisposeAsync().AsTask();
+        var subscribe = _sut.SubscribeAsync<FakeMessage>("1");
+        releaseUnsubscribeAnnouncement.SetResult();
+        await Task.WhenAll(unsubscribe, subscribe);
+
+        announced.Should().Equal(true, false, true);
+        _sut.GetSubscriptions()[$"{typeof(FakeMessage).FullName}:1"].Should().Be(1);
+    }
+
     private static bool VerifySubscriptionState(object[] args, string expectedTopic, string expectedKey, bool expectedHasSubscribers)
     {
         if (args.Length != 1) return false;

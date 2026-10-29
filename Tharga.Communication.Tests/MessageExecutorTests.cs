@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AwesomeAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Tharga.Communication.Contract;
 using Tharga.Communication.MessageHandler;
@@ -65,6 +66,72 @@ public class MessageExecutorTests
         handler.SeenText.Should().Be("hello");
     }
 
+    [Fact]
+    public async Task ExecuteAsync_HandlerWithScopedDependency_ResolvesWhenScopesAreValidated()
+    {
+        await using var provider = BuildProviderWithScopedHandler([], validateScopes: true);
+        var executor = provider.GetRequiredService<IMessageExecutor>();
+
+        var act = () => executor.ExecuteAsync(null, WrapScopedPing());
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_EachMessage_GetsItsOwnScopedDependency()
+    {
+        var created = new List<ScopedDependency>();
+        await using var provider = BuildProviderWithScopedHandler(created, validateScopes: false);
+        var executor = provider.GetRequiredService<IMessageExecutor>();
+
+        await executor.ExecuteAsync(null, WrapScopedPing());
+        await executor.ExecuteAsync(null, WrapScopedPing());
+
+        created.Should().HaveCount(2);
+        created[0].Should().NotBeSameAs(created[1]);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ScopedDependency_IsDisposedWhenTheMessageHasBeenHandled()
+    {
+        var created = new List<ScopedDependency>();
+        await using var provider = BuildProviderWithScopedHandler(created, validateScopes: false);
+        var executor = provider.GetRequiredService<IMessageExecutor>();
+
+        await executor.ExecuteAsync(null, WrapScopedPing());
+
+        created.Should().ContainSingle().Which.IsDisposed.Should().BeTrue();
+    }
+
+    private static ServiceProvider BuildProviderWithScopedHandler(List<ScopedDependency> created, bool validateScopes)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped(_ =>
+        {
+            var dependency = new ScopedDependency();
+            lock (created) created.Add(dependency);
+            return dependency;
+        });
+        services.AddTransient<ScopedDependencyHandler>();
+        services.AddSingleton<IHandlerTypeService>(new HandlerTypeService(new Dictionary<Type, HandlerTypeInfo>
+        {
+            [typeof(ScopedPing)] = new()
+            {
+                PayloadType = typeof(ScopedPing),
+                HandlerType = typeof(ScopedDependencyHandler),
+                HandlerMethod = typeof(ScopedDependencyHandler).GetMethod(nameof(ScopedDependencyHandler.Handle))
+            }
+        }));
+        services.AddTransient<IMessageExecutor, MessageExecutor>();
+        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = validateScopes });
+    }
+
+    private static RequestWrapper WrapScopedPing() => new()
+    {
+        Type = typeof(ScopedPing).AssemblyQualifiedName!,
+        Payload = JsonSerializer.Serialize(new ScopedPing())
+    };
+
     private static MessageExecutor CreateExecutor<TPayload>(object handler)
     {
         var handlerType = handler.GetType();
@@ -104,6 +171,33 @@ public class MessageExecutorTests
             SeenConnectionId = ConnectionId;
             SeenText = message.Text;
             return Task.CompletedTask;
+        }
+    }
+
+    public record ScopedPing;
+    public record ScopedPong;
+
+    public sealed class ScopedDependency : IDisposable
+    {
+        public bool IsDisposed { get; private set; }
+
+        public void Dispose() => IsDisposed = true;
+    }
+
+    // Not derived from SendMessageHandlerBase, so the assembly scans in other tests do not register it.
+    public class ScopedDependencyHandler
+    {
+        private readonly ScopedDependency _dependency;
+
+        public ScopedDependencyHandler(ScopedDependency dependency)
+        {
+            _dependency = dependency;
+        }
+
+        public Task<ScopedPong> Handle(ScopedPing message)
+        {
+            ObjectDisposedException.ThrowIf(_dependency.IsDisposed, _dependency);
+            return Task.FromResult(new ScopedPong());
         }
     }
 }

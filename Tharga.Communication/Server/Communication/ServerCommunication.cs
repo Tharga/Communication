@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Tharga.Communication.Contract;
-using Tharga.Communication.MessageHandler;
 
 namespace Tharga.Communication.Server.Communication;
 
@@ -11,15 +10,17 @@ internal class ServerCommunication : IServerCommunication
 {
     private static readonly TimeSpan _defaultTimeout = TimeSpan.FromSeconds(60);
 
-    private readonly IMessageExecutor _messageExecutor;
     private readonly IHubContext<SignalRHub> _signalRHub;
     private readonly ILogger<ServerCommunication> _logger;
     private readonly SubscriptionManager _subscriptionManager;
-    private readonly ConcurrentDictionary<string, (TaskCompletionSource<IMessageWrapper> Request, DateTime CreateDate)> _pendingRequests = new();
+    private readonly ConcurrentDictionary<string, PendingRequest> _pendingRequests = new();
+    // Held across the announcement too, so clients receive announcements in the order of the changes.
+    private readonly SemaphoreSlim _subscriptionLock = new(1, 1);
 
-    public ServerCommunication(IMessageExecutor messageExecutor, IHubContext<SignalRHub> signalRHub, SubscriptionManager subscriptionManager, ILogger<ServerCommunication> logger)
+    private sealed record PendingRequest(string RequestId, TaskCompletionSource<IMessageWrapper> Response, DateTime CreateDate);
+
+    public ServerCommunication(IHubContext<SignalRHub> signalRHub, SubscriptionManager subscriptionManager, ILogger<ServerCommunication> logger)
     {
-        _messageExecutor = messageExecutor;
         _signalRHub = signalRHub;
         _subscriptionManager = subscriptionManager;
         _logger = logger;
@@ -29,14 +30,16 @@ internal class ServerCommunication : IServerCommunication
 
     internal void OnResponseEvent(object sender, ResponseEventArgs e)
     {
-        if (_pendingRequests.TryRemove(e.ConnectionId, out var tcs))
+        if (_pendingRequests.TryGetValue(e.ConnectionId, out var pending)
+            && RequestWrapper.IsResponseTo(e.Response, pending.RequestId)
+            && _pendingRequests.TryRemove(new KeyValuePair<string, PendingRequest>(e.ConnectionId, pending)))
         {
-            tcs.Request.TrySetResult(e.Response);
-            PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(e.ConnectionId, false, tcs.CreateDate));
+            pending.Response.TrySetResult(e.Response);
+            PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(e.ConnectionId, false, pending.CreateDate));
         }
         else
         {
-            _messageExecutor.ExecuteAsync(e.ConnectionId, e.Response);
+            _logger.LogWarning("Dropped a response from client '{ConnectionId}' that matches no pending request.", e.ConnectionId);
         }
     }
 
@@ -70,37 +73,62 @@ internal class ServerCommunication : IServerCommunication
         var tcs = new TaskCompletionSource<IMessageWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var cd = DateTime.UtcNow;
-        if (!_pendingRequests.TryAdd(connectionId, (tcs, cd))) throw new InvalidOperationException($"A request is already pending for connection '{connectionId}'.");
+        var pending = new PendingRequest(Guid.NewGuid().ToString("N"), tcs, cd);
+        if (!_pendingRequests.TryAdd(connectionId, pending)) throw new InvalidOperationException($"A request is already pending for connection '{connectionId}'.");
 
-        PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, true, cd));
-
-        var requestWrapper = new RequestWrapper
+        try
         {
-            Type = typeof(TRequest).AssemblyQualifiedName,
-            Payload = JsonSerializer.Serialize(message)
-        };
+            PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, true, cd));
 
-        await _signalRHub.Clients.Client(connectionId).SendAsync(Constants.SendMessage, requestWrapper);
-
-        using var cts = new CancellationTokenSource(effectiveTimeout);
-        var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
-
-        if (completedTask != tcs.Task)
-        {
-            if (_pendingRequests.TryRemove(connectionId, out var tcsx))
+            var requestWrapper = new RequestWrapper
             {
-                PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, false, tcsx.CreateDate));
+                Type = typeof(TRequest).AssemblyQualifiedName,
+                Payload = JsonSerializer.Serialize(message),
+                RequestId = pending.RequestId
+            };
+
+            await _signalRHub.Clients.Client(connectionId).SendAsync(Constants.SendMessage, requestWrapper);
+
+            using var cts = new CancellationTokenSource(effectiveTimeout);
+            var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+
+            if (completedTask != tcs.Task)
+            {
+                _logger.LogWarning("Timeout waiting for response from agent '{connectionId}' after {timeout}.", connectionId, effectiveTimeout);
+
+                return Response<TResponse>.Fail("TIMEOUT", $"No response received within {effectiveTimeout.TotalSeconds} seconds.");
             }
 
-            _logger.LogWarning("Timeout waiting for response from agent '{connectionId}' after {timeout}.", connectionId, effectiveTimeout);
+            if (tcs.Task.IsCanceled)
+            {
+                return Response<TResponse>.Fail("DISCONNECTED", $"Client '{connectionId}' disconnected before it responded.");
+            }
 
-            return Response<TResponse>.Fail("TIMEOUT", $"No response received within {effectiveTimeout.TotalSeconds} seconds.");
+            var responseWrapper = await tcs.Task;
+            if (ErrorResponse.TryGetError(responseWrapper, requestWrapper, typeof(TResponse), out var error))
+            {
+                return Response<TResponse>.Fail("REMOTE_ERROR", error);
+            }
+
+            var value = JsonSerializer.Deserialize<TResponse>(responseWrapper.Payload);
+
+            return new Response<TResponse>(value);
         }
+        finally
+        {
+            if (_pendingRequests.TryRemove(new KeyValuePair<string, PendingRequest>(connectionId, pending)))
+            {
+                PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, false, cd));
+            }
+        }
+    }
 
-        var responseWrapper = await tcs.Task;
-        var value = JsonSerializer.Deserialize<TResponse>(responseWrapper.Payload);
-
-        return new Response<TResponse>(value);
+    internal void OnDisconnected(string connectionId)
+    {
+        if (_pendingRequests.TryGetValue(connectionId, out var pending))
+        {
+            pending.Response.TrySetCanceled();
+        }
     }
 
     public Dictionary<string, DateTime> GetPendingAsync()
@@ -111,13 +139,7 @@ internal class ServerCommunication : IServerCommunication
     public async Task<IAsyncDisposable> SubscribeAsync<T>(string key = null)
     {
         var topic = typeof(T).FullName!;
-        var isFirst = _subscriptionManager.Subscribe(topic, key);
-
-        if (isFirst)
-        {
-            await PostToAllAsync(new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = true });
-        }
-
+        await ChangeSubscriptionAsync(() => _subscriptionManager.Subscribe(topic, key), topic, key, true);
         return new SubscriptionHandle(this, topic, key);
     }
 
@@ -139,13 +161,24 @@ internal class ServerCommunication : IServerCommunication
         }
     }
 
-    internal async Task UnsubscribeAsync(string topic, string key)
+    internal Task UnsubscribeAsync(string topic, string key)
     {
-        var isLast = _subscriptionManager.Unsubscribe(topic, key);
+        return ChangeSubscriptionAsync(() => _subscriptionManager.Unsubscribe(topic, key), topic, key, false);
+    }
 
-        if (isLast)
+    private async Task ChangeSubscriptionAsync(Func<bool> crossesZero, string topic, string key, bool hasSubscribers)
+    {
+        await _subscriptionLock.WaitAsync();
+        try
         {
-            await PostToAllAsync(new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = false });
+            if (crossesZero())
+            {
+                await PostToAllAsync(new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = hasSubscribers });
+            }
+        }
+        finally
+        {
+            _subscriptionLock.Release();
         }
     }
 

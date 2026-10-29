@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Tharga.Communication.Contract;
 
 namespace Tharga.Communication.MessageHandler;
@@ -28,7 +29,19 @@ public class MessageExecutor : IMessageExecutor
             throw new InvalidOperationException($"Cannot find handler for type '{type.FullName}'.");
         }
 
-        var handler = _serviceProvider.GetService(handlerTypeInfo.HandlerType)
+        var scopeFactory = _serviceProvider.GetService<IServiceScopeFactory>();
+        if (scopeFactory == null)
+        {
+            return await InvokeHandlerAsync(_serviceProvider, handlerTypeInfo, connectionId, payload);
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        return await InvokeHandlerAsync(scope.ServiceProvider, handlerTypeInfo, connectionId, payload);
+    }
+
+    private static async Task<IMessageWrapper> InvokeHandlerAsync(IServiceProvider serviceProvider, HandlerTypeInfo handlerTypeInfo, string connectionId, object payload)
+    {
+        var handler = serviceProvider.GetService(handlerTypeInfo.HandlerType)
                       ?? throw new InvalidOperationException($"Cannot get instance of handler of type '{handlerTypeInfo.HandlerType.FullName}'.");
 
         if (connectionId != null)

@@ -22,6 +22,7 @@ public interface IClientCommunication
     /// <param name="message">The request payload.</param>
     /// <param name="timeout">Optional timeout. Defaults to <see cref="CommunicationOptions.SendMessageTimeout"/> or 60 seconds.</param>
     /// <returns>The response from the server.</returns>
+    /// <exception cref="RemoteRequestException">The server could not handle the request, for example because its handler threw or no handler is registered for <typeparamref name="TRequest"/>. Before version 1.2 this returned a response with default values instead.</exception>
     Task<TResponse> SendMessage<TRequest, TResponse>(TRequest message, TimeSpan? timeout = null);
 
     /// <summary>

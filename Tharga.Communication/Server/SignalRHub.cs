@@ -78,6 +78,8 @@ internal sealed class SignalRHub : Hub
     {
         _logger.LogInformation("Client '{connectionId}' disconnected.", Context.ConnectionId);
 
+        (_serverCommunication as ServerCommunication)?.OnDisconnected(Context.ConnectionId);
+
         await _clientStateService.DisconnectedAsync(Context.ConnectionId);
 
         await base.OnDisconnectedAsync(exception);
@@ -109,16 +111,12 @@ internal sealed class SignalRHub : Hub
         try
         {
             var response = await _messageExecutor.ExecuteAsync(connectionId, wrapper);
-            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, response);
+            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, wrapper.Respond(response));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to handle SendMessage for type '{Type}' from client '{ConnectionId}'.", wrapper.Type, connectionId);
-            var errorResponse = wrapper with
-            {
-                Payload = JsonSerializer.Serialize(new { Error = ex.Message })
-            };
-            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, errorResponse);
+            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, ErrorResponse.Create(wrapper, ex));
         }
     }
 

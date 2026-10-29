@@ -15,8 +15,10 @@ internal class ClientCommunication : IClientCommunication
     private readonly CommunicationOptions _options;
     private readonly ILogger<ClientCommunication> _logger;
 
-    private volatile TaskCompletionSource<IMessageWrapper> _pendingRequest;
+    private volatile PendingRequest _pendingRequest;
     private readonly object _sendLock = new();
+
+    private sealed record PendingRequest(string RequestId, TaskCompletionSource<IMessageWrapper> Response);
 
     public ClientCommunication(ISignalRHostedService signalRConnectionState, ClientResponseMediator responseMediator, SubscriptionStateTracker subscriptionStateTracker, IOptions<CommunicationOptions> options, ILogger<ClientCommunication> logger)
     {
@@ -45,13 +47,13 @@ internal class ClientCommunication : IClientCommunication
         var effectiveTimeout = timeout ?? _options.SendMessageTimeout;
         if (effectiveTimeout == default) effectiveTimeout = DefaultTimeout;
 
-        var tcs = new TaskCompletionSource<IMessageWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new PendingRequest(Guid.NewGuid().ToString("N"), new TaskCompletionSource<IMessageWrapper>(TaskCreationOptions.RunContinuationsAsynchronously));
 
         lock (_sendLock)
         {
             if (_pendingRequest != null)
                 throw new InvalidOperationException("A request is already pending. Only one SendMessage can be in-flight at a time.");
-            _pendingRequest = tcs;
+            _pendingRequest = pending;
         }
 
         try
@@ -59,21 +61,27 @@ internal class ClientCommunication : IClientCommunication
             var requestWrapper = new RequestWrapper
             {
                 Type = typeof(TRequest).AssemblyQualifiedName,
-                Payload = JsonSerializer.Serialize(message)
+                Payload = JsonSerializer.Serialize(message),
+                RequestId = pending.RequestId
             };
 
             await _signalRConnectionState.SendAsync(Constants.SendMessage, requestWrapper);
 
             using var cts = new CancellationTokenSource(effectiveTimeout);
-            var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+            var completedTask = await Task.WhenAny(pending.Response.Task, Task.Delay(Timeout.Infinite, cts.Token));
 
-            if (completedTask != tcs.Task)
+            if (completedTask != pending.Response.Task)
             {
                 _logger.LogWarning("Timeout waiting for response from server after {Timeout}.", effectiveTimeout);
                 throw new TimeoutException($"No response received from server within {effectiveTimeout.TotalSeconds} seconds.");
             }
 
-            var responseWrapper = await tcs.Task;
+            var responseWrapper = await pending.Response.Task;
+            if (ErrorResponse.TryGetError(responseWrapper, requestWrapper, typeof(TResponse), out var error))
+            {
+                throw new RemoteRequestException($"The server could not handle {typeof(TRequest).Name}: {error}");
+            }
+
             return JsonSerializer.Deserialize<TResponse>(responseWrapper.Payload);
         }
         finally
@@ -87,14 +95,18 @@ internal class ClientCommunication : IClientCommunication
 
     internal void OnResponse(IMessageWrapper response)
     {
-        var tcs = _pendingRequest;
-        if (tcs != null)
+        var pending = _pendingRequest;
+        if (pending == null)
         {
-            tcs.TrySetResult(response);
+            _logger.LogWarning("Received response but no request is pending.");
+        }
+        else if (RequestWrapper.IsResponseTo(response, pending.RequestId))
+        {
+            pending.Response.TrySetResult(response);
         }
         else
         {
-            _logger.LogWarning("Received response but no request is pending.");
+            _logger.LogWarning("Dropped a response to request '{RequestId}', which is no longer pending.", (response as RequestWrapper)?.RequestId);
         }
     }
 

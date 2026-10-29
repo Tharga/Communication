@@ -31,7 +31,7 @@ internal class SubscriptionManager
         var newCount = _subscriptions.AddOrUpdate(subscriptionKey, 0, (_, count) => Math.Max(0, count - 1));
         if (newCount == 0)
         {
-            _subscriptions.TryRemove(subscriptionKey, out _);
+            _subscriptions.TryRemove(new KeyValuePair<(string Topic, string Key), int>(subscriptionKey, 0));
             return true;
         }
         return false;

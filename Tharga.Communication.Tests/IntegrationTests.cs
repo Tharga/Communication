@@ -46,7 +46,7 @@ public class IntegrationTests : IAsyncLifetime
     }
 
     // Minimal client state service for testing
-    private class TestClientStateService : ClientStateServiceBase<ClientConnectionInfo>
+    internal class TestClientStateService : ClientStateServiceBase<ClientConnectionInfo>
     {
         public TestClientStateService(IServiceProvider sp, IOptions<CommunicationOptions> options)
             : base(sp, options) { }
@@ -164,6 +164,26 @@ public class IntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Server_SendMessageAsync_ClientDisconnectsBeforeResponding_FailsWithoutWaitingForTheTimeout()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var requestReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<RequestWrapper>(Constants.SendMessage, _ => requestReceived.TrySetResult());
+
+        var serverComm = _app.Services.GetRequiredService<IServerCommunication>();
+        var sending = serverComm.SendMessageAsync<EchoRequest, EchoResponse>(
+            _hubConnection.ConnectionId!, new EchoRequest("hello"), TimeSpan.FromSeconds(30));
+        await requestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await _hubConnection.StopAsync(ct);
+
+        var result = await sending.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("DISCONNECTED");
+        serverComm.GetPendingAsync().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Client_SendMessage_ServerHandlerResponds()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -183,6 +203,105 @@ public class IntegrationTests : IAsyncLifetime
         result.Type.Should().Be(typeof(EchoResponse).AssemblyQualifiedName);
         JsonSerializer.Deserialize<EchoResponse>(result.Payload)!.Reply.Should().Be("Echo: hello");
     }
+
+    [Fact]
+    public async Task Client_SendMessage_ServerEchoesTheRequestId()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = new TaskCompletionSource<RequestWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<RequestWrapper>(Constants.ResponseMessage, payload => response.TrySetResult(payload));
+
+        await _hubConnection.SendAsync(Constants.SendMessage, new RequestWrapper
+        {
+            Type = typeof(EchoRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new EchoRequest("hello")),
+            RequestId = "request-1"
+        }, ct);
+
+        var result = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        result.RequestId.Should().Be("request-1");
+    }
+
+    [Fact]
+    public async Task Client_OnThePreviousWireFormat_SendMessage_GetsItsResponse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = new TaskCompletionSource<WireCompatibilityTests.PreviousWireWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<WireCompatibilityTests.PreviousWireWrapper>(Constants.ResponseMessage, payload => response.TrySetResult(payload));
+
+        await _hubConnection.SendAsync(Constants.SendMessage, new WireCompatibilityTests.PreviousWireWrapper
+        {
+            Type = typeof(EchoRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new EchoRequest("hello"))
+        }, ct);
+
+        var result = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        result.Type.Should().Be(typeof(EchoResponse).AssemblyQualifiedName);
+        JsonSerializer.Deserialize<EchoResponse>(result.Payload)!.Reply.Should().Be("Echo: hello");
+    }
+
+    [Fact]
+    public async Task Server_SendMessageAsync_ClientOnThePreviousWireFormat_GetsItsResponseMatched()
+    {
+        _hubConnection.On<WireCompatibilityTests.PreviousWireWrapper>(Constants.SendMessage, async payload =>
+        {
+            var request = JsonSerializer.Deserialize<EchoRequest>(payload.Payload);
+            await _hubConnection.SendAsync(Constants.ResponseMessage, new WireCompatibilityTests.PreviousWireWrapper
+            {
+                Type = typeof(EchoResponse).AssemblyQualifiedName!,
+                Payload = JsonSerializer.Serialize(new EchoResponse($"ClientEcho: {request.Message}"))
+            });
+        });
+
+        var serverComm = _app.Services.GetRequiredService<IServerCommunication>();
+        var result = await serverComm.SendMessageAsync<EchoRequest, EchoResponse>(
+            _hubConnection.ConnectionId!, new EchoRequest("hello"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Reply.Should().Be("ClientEcho: hello");
+    }
+
+    [Fact]
+    public async Task Server_SendMessageAsync_ClientOnThePreviousWireFormatReportsAnError_ReturnsAFailedResponse()
+    {
+        _hubConnection.On<WireCompatibilityTests.PreviousWireWrapper>(Constants.SendMessage, async payload =>
+        {
+            await _hubConnection.SendAsync(Constants.ResponseMessage, payload with
+            {
+                Payload = JsonSerializer.Serialize(new { Error = "Handler failure." })
+            });
+        });
+
+        var serverComm = _app.Services.GetRequiredService<IServerCommunication>();
+        var result = await serverComm.SendMessageAsync<EchoRequest, EchoResponse>(
+            _hubConnection.ConnectionId!, new EchoRequest("hello"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("REMOTE_ERROR");
+        result.Message.Should().Be("Handler failure.");
+    }
+
+    [Fact]
+    public async Task Client_SendMessage_ServerCannotHandleIt_RespondsWithAnErrorInTheShapeEarlierVersionsExpect()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = new TaskCompletionSource<RequestWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<RequestWrapper>(Constants.ResponseMessage, payload => response.TrySetResult(payload));
+        var request = new RequestWrapper
+        {
+            Type = typeof(UnhandledRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new UnhandledRequest())
+        };
+
+        await _hubConnection.SendAsync(Constants.SendMessage, request, ct);
+
+        var result = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        result.Type.Should().Be(request.Type);
+        JsonSerializer.Deserialize<Dictionary<string, string>>(result.Payload).Should().ContainKey("Error").WhoseValue.Should().Contain("Cannot find handler");
+        result.Error.Should().Contain("Cannot find handler");
+    }
+
+    public record UnhandledRequest;
 
     [Fact]
     public async Task ApiKey_Rejection_ClientCannotConnect()

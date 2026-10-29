@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using Moq;
 using Moq.AutoMock;
 using Tharga.Communication.Contract;
+using Tharga.Communication.MessageHandler;
 using Tharga.Communication.Server;
 using Tharga.Communication.Server.Communication;
 using Xunit;
@@ -20,6 +21,11 @@ public class ServerCommunicationTests
     public record TestNotification(string Text);
     public record TestRequest(string Value);
     public record TestResponse(string Result);
+
+    public class CyclicRequest
+    {
+        public CyclicRequest Next { get; set; }
+    }
 
     public ServerCommunicationTests()
     {
@@ -133,6 +139,145 @@ public class ServerCommunicationTests
         // Clean up - let first request timeout
         await firstTask;
     }
+
+    [Fact]
+    public async Task SendMessageAsync_WhenSendingFails_DoesNotLeaveTheRequestPending()
+    {
+        var events = new List<PendingRequestEventArgs>();
+        _sut.PendingRequestEvent += (_, e) => events.Add(e);
+        _clientProxy
+            .Setup(x => x.SendCoreAsync(Constants.SendMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Transport failure."));
+
+        var failing = () => _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+        await failing.Should().ThrowAsync<IOException>();
+
+        _sut.GetPendingAsync().Should().BeEmpty();
+        events.Select(e => e.Added).Should().Equal(true, false);
+        var next = () => _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromMilliseconds(50));
+        await next.Should().NotThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WhenTheMessageCannotBeSerialized_DoesNotLeaveTheRequestPending()
+    {
+        var cyclic = new CyclicRequest();
+        cyclic.Next = cyclic;
+
+        var act = () => _sut.SendMessageAsync<CyclicRequest, TestResponse>("conn-1", cyclic, TimeSpan.FromSeconds(5));
+
+        await act.Should().ThrowAsync<JsonException>();
+        _sut.GetPendingAsync().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WhenAPendingRequestSubscriberThrows_DoesNotLeaveTheRequestPending()
+    {
+        _sut.PendingRequestEvent += (_, e) =>
+        {
+            if (e.Added) throw new InvalidOperationException("Subscriber failure.");
+        };
+
+        var act = () => _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Subscriber failure.");
+        _sut.GetPendingAsync().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void OnResponseEvent_ResponseMatchingNoPendingRequest_IsNotExecutedAsAMessage()
+    {
+        _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", new RequestWrapper
+        {
+            Type = typeof(TestResponse).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new TestResponse("late"))
+        }));
+
+        _mocker.GetMock<IMessageExecutor>().Verify(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<IMessageWrapper>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ResponseForAnEarlierRequest_DoesNotCompleteThePendingRequest()
+    {
+        var sent = new List<RequestWrapper>();
+        _clientProxy
+            .Setup(x => x.SendCoreAsync(Constants.SendMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((_, args, _) => sent.Add((RequestWrapper)args[0]))
+            .Returns(Task.CompletedTask);
+        await _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("first"), TimeSpan.FromMilliseconds(50));
+        var second = _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("second"), TimeSpan.FromSeconds(5));
+
+        _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", Reply(sent[0].RequestId, "first")));
+        _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", Reply(sent[1].RequestId, "second")));
+
+        sent.Select(x => x.RequestId).Should().OnlyHaveUniqueItems().And.NotContainNulls();
+        (await second).Value.Result.Should().Be("second");
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ClientReportsAnError_ReturnsAFailedResponse()
+    {
+        RespondWith(new RequestWrapper
+        {
+            Type = typeof(TestRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new { Error = "Handler failure." }),
+            Error = "Handler failure."
+        });
+
+        var result = await _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("REMOTE_ERROR");
+        result.Message.Should().Be("Handler failure.");
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ClientOnAnEarlierVersionReportsAnError_ReturnsAFailedResponse()
+    {
+        RespondWith(new RequestWrapper
+        {
+            Type = typeof(TestRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new { Error = "Handler failure." })
+        });
+
+        var result = await _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("REMOTE_ERROR");
+        result.Message.Should().Be("Handler failure.");
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ResponseWithAnErrorProperty_IsASuccess()
+    {
+        RespondWith(new RequestWrapper
+        {
+            Type = typeof(ErrorReport).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new ErrorReport("Disk full."))
+        });
+
+        var result = await _sut.SendMessageAsync<TestRequest, ErrorReport>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Error.Should().Be("Disk full.");
+    }
+
+    public record ErrorReport(string Error);
+
+    private void RespondWith(RequestWrapper response)
+    {
+        _clientProxy
+            .Setup(x => x.SendCoreAsync(Constants.SendMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((_, _, _) => _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", response)))
+            .Returns(Task.CompletedTask);
+    }
+
+    private static RequestWrapper Reply(string requestId, string result) => new()
+    {
+        Type = typeof(TestResponse).AssemblyQualifiedName!,
+        Payload = JsonSerializer.Serialize(new TestResponse(result)),
+        RequestId = requestId
+    };
 
     [Fact]
     public async Task GetPendingAsync_TracksPendingRequests()
