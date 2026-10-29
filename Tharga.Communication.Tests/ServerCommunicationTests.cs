@@ -21,6 +21,11 @@ public class ServerCommunicationTests
     public record TestRequest(string Value);
     public record TestResponse(string Result);
 
+    public class CyclicRequest
+    {
+        public CyclicRequest Next { get; set; }
+    }
+
     public ServerCommunicationTests()
     {
         _mocker.Use(new SubscriptionManager());
@@ -132,6 +137,50 @@ public class ServerCommunicationTests
 
         // Clean up - let first request timeout
         await firstTask;
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WhenSendingFails_DoesNotLeaveTheRequestPending()
+    {
+        var events = new List<PendingRequestEventArgs>();
+        _sut.PendingRequestEvent += (_, e) => events.Add(e);
+        _clientProxy
+            .Setup(x => x.SendCoreAsync(Constants.SendMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Transport failure."));
+
+        var failing = () => _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+        await failing.Should().ThrowAsync<IOException>();
+
+        _sut.GetPendingAsync().Should().BeEmpty();
+        events.Select(e => e.Added).Should().Equal(true, false);
+        var next = () => _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromMilliseconds(50));
+        await next.Should().NotThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WhenTheMessageCannotBeSerialized_DoesNotLeaveTheRequestPending()
+    {
+        var cyclic = new CyclicRequest();
+        cyclic.Next = cyclic;
+
+        var act = () => _sut.SendMessageAsync<CyclicRequest, TestResponse>("conn-1", cyclic, TimeSpan.FromSeconds(5));
+
+        await act.Should().ThrowAsync<JsonException>();
+        _sut.GetPendingAsync().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WhenAPendingRequestSubscriberThrows_DoesNotLeaveTheRequestPending()
+    {
+        _sut.PendingRequestEvent += (_, e) =>
+        {
+            if (e.Added) throw new InvalidOperationException("Subscriber failure.");
+        };
+
+        var act = () => _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("ping"), TimeSpan.FromSeconds(5));
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Subscriber failure.");
+        _sut.GetPendingAsync().Should().BeEmpty();
     }
 
     [Fact]

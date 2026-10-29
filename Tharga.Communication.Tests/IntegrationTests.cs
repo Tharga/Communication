@@ -164,6 +164,26 @@ public class IntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Server_SendMessageAsync_ClientDisconnectsBeforeResponding_FailsWithoutWaitingForTheTimeout()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var requestReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<RequestWrapper>(Constants.SendMessage, _ => requestReceived.TrySetResult());
+
+        var serverComm = _app.Services.GetRequiredService<IServerCommunication>();
+        var sending = serverComm.SendMessageAsync<EchoRequest, EchoResponse>(
+            _hubConnection.ConnectionId!, new EchoRequest("hello"), TimeSpan.FromSeconds(30));
+        await requestReceived.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await _hubConnection.StopAsync(ct);
+
+        var result = await sending.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Code.Should().Be("DISCONNECTED");
+        serverComm.GetPendingAsync().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Client_SendMessage_ServerHandlerResponds()
     {
         var ct = TestContext.Current.CancellationToken;

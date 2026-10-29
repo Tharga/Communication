@@ -78,6 +78,8 @@ internal sealed class SignalRHub : Hub
     {
         _logger.LogInformation("Client '{connectionId}' disconnected.", Context.ConnectionId);
 
+        (_serverCommunication as ServerCommunication)?.OnDisconnected(Context.ConnectionId);
+
         await _clientStateService.DisconnectedAsync(Context.ConnectionId);
 
         await base.OnDisconnectedAsync(exception);

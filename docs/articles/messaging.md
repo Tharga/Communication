@@ -34,6 +34,13 @@ else
     Console.WriteLine($"Failed: {response.Code} — {response.Message}");
 ```
 
+A failed response carries one of these codes:
+
+| `Code` | Meaning |
+|---|---|
+| `TIMEOUT` | No response arrived within the timeout. |
+| `DISCONNECTED` | The client disconnected before it responded. Before 1.2 this waited for the full timeout and reported `TIMEOUT`. |
+
 ```csharp
 // Client → server, expecting a response
 var response = await clientCommunication.SendMessage<EchoRequest, EchoResponse>(

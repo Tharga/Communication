@@ -72,37 +72,56 @@ internal class ServerCommunication : IServerCommunication
         var tcs = new TaskCompletionSource<IMessageWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var cd = DateTime.UtcNow;
-        if (!_pendingRequests.TryAdd(connectionId, (tcs, cd))) throw new InvalidOperationException($"A request is already pending for connection '{connectionId}'.");
+        var pending = (tcs, cd);
+        if (!_pendingRequests.TryAdd(connectionId, pending)) throw new InvalidOperationException($"A request is already pending for connection '{connectionId}'.");
 
-        PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, true, cd));
-
-        var requestWrapper = new RequestWrapper
+        try
         {
-            Type = typeof(TRequest).AssemblyQualifiedName,
-            Payload = JsonSerializer.Serialize(message)
-        };
+            PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, true, cd));
 
-        await _signalRHub.Clients.Client(connectionId).SendAsync(Constants.SendMessage, requestWrapper);
-
-        using var cts = new CancellationTokenSource(effectiveTimeout);
-        var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
-
-        if (completedTask != tcs.Task)
-        {
-            if (_pendingRequests.TryRemove(connectionId, out var tcsx))
+            var requestWrapper = new RequestWrapper
             {
-                PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, false, tcsx.CreateDate));
+                Type = typeof(TRequest).AssemblyQualifiedName,
+                Payload = JsonSerializer.Serialize(message)
+            };
+
+            await _signalRHub.Clients.Client(connectionId).SendAsync(Constants.SendMessage, requestWrapper);
+
+            using var cts = new CancellationTokenSource(effectiveTimeout);
+            var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+
+            if (completedTask != tcs.Task)
+            {
+                _logger.LogWarning("Timeout waiting for response from agent '{connectionId}' after {timeout}.", connectionId, effectiveTimeout);
+
+                return Response<TResponse>.Fail("TIMEOUT", $"No response received within {effectiveTimeout.TotalSeconds} seconds.");
             }
 
-            _logger.LogWarning("Timeout waiting for response from agent '{connectionId}' after {timeout}.", connectionId, effectiveTimeout);
+            if (tcs.Task.IsCanceled)
+            {
+                return Response<TResponse>.Fail("DISCONNECTED", $"Client '{connectionId}' disconnected before it responded.");
+            }
 
-            return Response<TResponse>.Fail("TIMEOUT", $"No response received within {effectiveTimeout.TotalSeconds} seconds.");
+            var responseWrapper = await tcs.Task;
+            var value = JsonSerializer.Deserialize<TResponse>(responseWrapper.Payload);
+
+            return new Response<TResponse>(value);
         }
+        finally
+        {
+            if (_pendingRequests.TryRemove(new KeyValuePair<string, (TaskCompletionSource<IMessageWrapper>, DateTime)>(connectionId, pending)))
+            {
+                PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, false, cd));
+            }
+        }
+    }
 
-        var responseWrapper = await tcs.Task;
-        var value = JsonSerializer.Deserialize<TResponse>(responseWrapper.Payload);
-
-        return new Response<TResponse>(value);
+    internal void OnDisconnected(string connectionId)
+    {
+        if (_pendingRequests.TryGetValue(connectionId, out var pending))
+        {
+            pending.Request.TrySetCanceled();
+        }
     }
 
     public Dictionary<string, DateTime> GetPendingAsync()
