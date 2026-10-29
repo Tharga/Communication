@@ -49,6 +49,8 @@ var response = await clientCommunication.SendMessage<EchoRequest, EchoResponse>(
 
 The default client-side timeout is configurable via `CommunicationOptions.SendMessageTimeout`.
 
+Each request carries a request id, which the receiving side copies into its response. A response that arrives after its request timed out is logged and dropped, instead of being returned as the answer to the next request. Before 1.2 it was returned for the next request. Peers on 1.1 and earlier send no request id; their responses are still accepted and matched the way they were before, so mixed versions keep working, but the protection against late responses needs both sides on 1.2 or later.
+
 ## Handlers
 
 Handlers are discovered automatically — define a class that inherits from `PostMessageHandlerBase<T>` or `SendMessageHandlerBase<TRequest, TResponse>` and it gets registered in DI.

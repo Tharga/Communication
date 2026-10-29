@@ -25,6 +25,17 @@ public class ClientServerIntegrationTests : IAsyncLifetime
     private IHost _client;
 
     public record OrderedTopic;
+    public record SlowEcho(string Text, int DelayMilliseconds);
+    public record SlowEchoReply(string Text);
+
+    public class SlowEchoHandler : SendMessageHandlerBase<SlowEcho, SlowEchoReply>
+    {
+        public override async Task<SlowEchoReply> Handle(SlowEcho message)
+        {
+            await Task.Delay(message.DelayMilliseconds);
+            return new SlowEchoReply(message.Text);
+        }
+    }
 
     public async ValueTask InitializeAsync()
     {
@@ -83,6 +94,45 @@ public class ClientServerIntegrationTests : IAsyncLifetime
 
         applied.Should().Equal(true, false, true);
         clientCommunication.HasSubscribers<OrderedTopic>().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Client_SendMessage_ResponseArrivingAfterItsRequestTimedOut_IsNotReturnedForTheNextRequest()
+    {
+        var client = await StartClientAsync();
+        var clientCommunication = client.Services.GetRequiredService<IClientCommunication>();
+
+        var timedOut = () => clientCommunication.SendMessage<SlowEcho, SlowEchoReply>(new SlowEcho("first", 500), TimeSpan.FromMilliseconds(100));
+        await timedOut.Should().ThrowAsync<TimeoutException>();
+        var reply = await clientCommunication.SendMessage<SlowEcho, SlowEchoReply>(new SlowEcho("second", 800), WaitLimit);
+
+        reply.Text.Should().Be("second");
+    }
+
+    [Fact]
+    public async Task Server_SendMessageAsync_ResponseArrivingAfterItsRequestTimedOut_IsNotReturnedForTheNextRequest()
+    {
+        await StartClientAsync();
+        var serverCommunication = _server.Services.GetRequiredService<IServerCommunication>();
+        var connectionId = await GetClientConnectionIdAsync();
+
+        var timedOut = await serverCommunication.SendMessageAsync<SlowEcho, SlowEchoReply>(connectionId, new SlowEcho("first", 500), TimeSpan.FromMilliseconds(100));
+        var reply = await serverCommunication.SendMessageAsync<SlowEcho, SlowEchoReply>(connectionId, new SlowEcho("second", 800), WaitLimit);
+
+        timedOut.Code.Should().Be("TIMEOUT");
+        reply.IsSuccess.Should().BeTrue();
+        reply.Value.Text.Should().Be("second");
+    }
+
+    private async Task<string> GetClientConnectionIdAsync()
+    {
+        var stateService = _server.Services.GetRequiredService<IntegrationTests.TestClientStateService>();
+        await foreach (var connection in stateService.GetAsync())
+        {
+            if (connection.Machine == ClientMachine) return connection.ConnectionId;
+        }
+
+        throw new InvalidOperationException("The client is not connected.");
     }
 
     private async Task<IHost> StartClientAsync(Action<IServiceCollection> configureServices = null)

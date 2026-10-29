@@ -159,7 +159,7 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
                 try
                 {
                     var response = await _messageExecutor.ExecuteAsync(null, payload);
-                    await _connection.SendAsync(Constants.ResponseMessage, response);
+                    await _connection.SendAsync(Constants.ResponseMessage, payload.Respond(response));
                 }
                 catch (Exception ex)
                 {

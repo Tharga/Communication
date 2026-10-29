@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using Moq;
 using Moq.AutoMock;
 using Tharga.Communication.Contract;
+using Tharga.Communication.MessageHandler;
 using Tharga.Communication.Server;
 using Tharga.Communication.Server.Communication;
 using Xunit;
@@ -182,6 +183,43 @@ public class ServerCommunicationTests
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("Subscriber failure.");
         _sut.GetPendingAsync().Should().BeEmpty();
     }
+
+    [Fact]
+    public void OnResponseEvent_ResponseMatchingNoPendingRequest_IsNotExecutedAsAMessage()
+    {
+        _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", new RequestWrapper
+        {
+            Type = typeof(TestResponse).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new TestResponse("late"))
+        }));
+
+        _mocker.GetMock<IMessageExecutor>().Verify(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<IMessageWrapper>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_ResponseForAnEarlierRequest_DoesNotCompleteThePendingRequest()
+    {
+        var sent = new List<RequestWrapper>();
+        _clientProxy
+            .Setup(x => x.SendCoreAsync(Constants.SendMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((_, args, _) => sent.Add((RequestWrapper)args[0]))
+            .Returns(Task.CompletedTask);
+        await _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("first"), TimeSpan.FromMilliseconds(50));
+        var second = _sut.SendMessageAsync<TestRequest, TestResponse>("conn-1", new TestRequest("second"), TimeSpan.FromSeconds(5));
+
+        _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", Reply(sent[0].RequestId, "first")));
+        _sut.OnResponseEvent(this, new ResponseEventArgs("conn-1", Reply(sent[1].RequestId, "second")));
+
+        sent.Select(x => x.RequestId).Should().OnlyHaveUniqueItems().And.NotContainNulls();
+        (await second).Value.Result.Should().Be("second");
+    }
+
+    private static RequestWrapper Reply(string requestId, string result) => new()
+    {
+        Type = typeof(TestResponse).AssemblyQualifiedName!,
+        Payload = JsonSerializer.Serialize(new TestResponse(result)),
+        RequestId = requestId
+    };
 
     [Fact]
     public async Task GetPendingAsync_TracksPendingRequests()

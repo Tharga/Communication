@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Tharga.Communication.Contract;
-using Tharga.Communication.MessageHandler;
 
 namespace Tharga.Communication.Server.Communication;
 
@@ -11,17 +10,17 @@ internal class ServerCommunication : IServerCommunication
 {
     private static readonly TimeSpan _defaultTimeout = TimeSpan.FromSeconds(60);
 
-    private readonly IMessageExecutor _messageExecutor;
     private readonly IHubContext<SignalRHub> _signalRHub;
     private readonly ILogger<ServerCommunication> _logger;
     private readonly SubscriptionManager _subscriptionManager;
-    private readonly ConcurrentDictionary<string, (TaskCompletionSource<IMessageWrapper> Request, DateTime CreateDate)> _pendingRequests = new();
+    private readonly ConcurrentDictionary<string, PendingRequest> _pendingRequests = new();
     // Held across the announcement too, so clients receive announcements in the order of the changes.
     private readonly SemaphoreSlim _subscriptionLock = new(1, 1);
 
-    public ServerCommunication(IMessageExecutor messageExecutor, IHubContext<SignalRHub> signalRHub, SubscriptionManager subscriptionManager, ILogger<ServerCommunication> logger)
+    private sealed record PendingRequest(string RequestId, TaskCompletionSource<IMessageWrapper> Response, DateTime CreateDate);
+
+    public ServerCommunication(IHubContext<SignalRHub> signalRHub, SubscriptionManager subscriptionManager, ILogger<ServerCommunication> logger)
     {
-        _messageExecutor = messageExecutor;
         _signalRHub = signalRHub;
         _subscriptionManager = subscriptionManager;
         _logger = logger;
@@ -31,14 +30,16 @@ internal class ServerCommunication : IServerCommunication
 
     internal void OnResponseEvent(object sender, ResponseEventArgs e)
     {
-        if (_pendingRequests.TryRemove(e.ConnectionId, out var tcs))
+        if (_pendingRequests.TryGetValue(e.ConnectionId, out var pending)
+            && RequestWrapper.IsResponseTo(e.Response, pending.RequestId)
+            && _pendingRequests.TryRemove(new KeyValuePair<string, PendingRequest>(e.ConnectionId, pending)))
         {
-            tcs.Request.TrySetResult(e.Response);
-            PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(e.ConnectionId, false, tcs.CreateDate));
+            pending.Response.TrySetResult(e.Response);
+            PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(e.ConnectionId, false, pending.CreateDate));
         }
         else
         {
-            _messageExecutor.ExecuteAsync(e.ConnectionId, e.Response);
+            _logger.LogWarning("Dropped a response from client '{ConnectionId}' that matches no pending request.", e.ConnectionId);
         }
     }
 
@@ -72,7 +73,7 @@ internal class ServerCommunication : IServerCommunication
         var tcs = new TaskCompletionSource<IMessageWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var cd = DateTime.UtcNow;
-        var pending = (tcs, cd);
+        var pending = new PendingRequest(Guid.NewGuid().ToString("N"), tcs, cd);
         if (!_pendingRequests.TryAdd(connectionId, pending)) throw new InvalidOperationException($"A request is already pending for connection '{connectionId}'.");
 
         try
@@ -82,7 +83,8 @@ internal class ServerCommunication : IServerCommunication
             var requestWrapper = new RequestWrapper
             {
                 Type = typeof(TRequest).AssemblyQualifiedName,
-                Payload = JsonSerializer.Serialize(message)
+                Payload = JsonSerializer.Serialize(message),
+                RequestId = pending.RequestId
             };
 
             await _signalRHub.Clients.Client(connectionId).SendAsync(Constants.SendMessage, requestWrapper);
@@ -109,7 +111,7 @@ internal class ServerCommunication : IServerCommunication
         }
         finally
         {
-            if (_pendingRequests.TryRemove(new KeyValuePair<string, (TaskCompletionSource<IMessageWrapper>, DateTime)>(connectionId, pending)))
+            if (_pendingRequests.TryRemove(new KeyValuePair<string, PendingRequest>(connectionId, pending)))
             {
                 PendingRequestEvent?.Invoke(this, new PendingRequestEventArgs(connectionId, false, cd));
             }
@@ -120,7 +122,7 @@ internal class ServerCommunication : IServerCommunication
     {
         if (_pendingRequests.TryGetValue(connectionId, out var pending))
         {
-            pending.Request.TrySetCanceled();
+            pending.Response.TrySetCanceled();
         }
     }
 

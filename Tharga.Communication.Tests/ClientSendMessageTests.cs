@@ -84,6 +84,32 @@ public class ClientSendMessageTests
     }
 
     [Fact]
+    public async Task SendMessage_ResponseForAnEarlierRequest_DoesNotCompleteThePendingRequest()
+    {
+        var sent = new List<RequestWrapper>();
+        _signalR
+            .Setup(x => x.SendAsync(Constants.SendMessage, It.IsAny<object>()))
+            .Callback<string, object>((_, wrapper) => sent.Add((RequestWrapper)wrapper))
+            .Returns(Task.CompletedTask);
+        var timedOut = () => _sut.SendMessage<PingRequest, PingResponse>(new PingRequest("first"), TimeSpan.FromMilliseconds(50));
+        await timedOut.Should().ThrowAsync<TimeoutException>();
+        var second = _sut.SendMessage<PingRequest, PingResponse>(new PingRequest("second"));
+
+        _mediator.Deliver(Reply(sent[0].RequestId, "first"));
+        _mediator.Deliver(Reply(sent[1].RequestId, "second"));
+
+        sent.Select(x => x.RequestId).Should().OnlyHaveUniqueItems().And.NotContainNulls();
+        (await second).Reply.Should().Be("second");
+    }
+
+    private static RequestWrapper Reply(string requestId, string reply) => new()
+    {
+        Type = typeof(PingResponse).AssemblyQualifiedName!,
+        Payload = System.Text.Json.JsonSerializer.Serialize(new PingResponse(reply)),
+        RequestId = requestId
+    };
+
+    [Fact]
     public async Task SendMessage_SendsCorrectWrapperToServer()
     {
         var sendTask = _sut.SendMessage<PingRequest, PingResponse>(new PingRequest("test"));

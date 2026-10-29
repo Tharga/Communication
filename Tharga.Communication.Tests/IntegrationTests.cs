@@ -205,6 +205,63 @@ public class IntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Client_SendMessage_ServerEchoesTheRequestId()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = new TaskCompletionSource<RequestWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<RequestWrapper>(Constants.ResponseMessage, payload => response.TrySetResult(payload));
+
+        await _hubConnection.SendAsync(Constants.SendMessage, new RequestWrapper
+        {
+            Type = typeof(EchoRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new EchoRequest("hello")),
+            RequestId = "request-1"
+        }, ct);
+
+        var result = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        result.RequestId.Should().Be("request-1");
+    }
+
+    [Fact]
+    public async Task Client_OnThePreviousWireFormat_SendMessage_GetsItsResponse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var response = new TaskCompletionSource<WireCompatibilityTests.PreviousWireWrapper>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hubConnection.On<WireCompatibilityTests.PreviousWireWrapper>(Constants.ResponseMessage, payload => response.TrySetResult(payload));
+
+        await _hubConnection.SendAsync(Constants.SendMessage, new WireCompatibilityTests.PreviousWireWrapper
+        {
+            Type = typeof(EchoRequest).AssemblyQualifiedName!,
+            Payload = JsonSerializer.Serialize(new EchoRequest("hello"))
+        }, ct);
+
+        var result = await response.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+        result.Type.Should().Be(typeof(EchoResponse).AssemblyQualifiedName);
+        JsonSerializer.Deserialize<EchoResponse>(result.Payload)!.Reply.Should().Be("Echo: hello");
+    }
+
+    [Fact]
+    public async Task Server_SendMessageAsync_ClientOnThePreviousWireFormat_GetsItsResponseMatched()
+    {
+        _hubConnection.On<WireCompatibilityTests.PreviousWireWrapper>(Constants.SendMessage, async payload =>
+        {
+            var request = JsonSerializer.Deserialize<EchoRequest>(payload.Payload);
+            await _hubConnection.SendAsync(Constants.ResponseMessage, new WireCompatibilityTests.PreviousWireWrapper
+            {
+                Type = typeof(EchoResponse).AssemblyQualifiedName!,
+                Payload = JsonSerializer.Serialize(new EchoResponse($"ClientEcho: {request.Message}"))
+            });
+        });
+
+        var serverComm = _app.Services.GetRequiredService<IServerCommunication>();
+        var result = await serverComm.SendMessageAsync<EchoRequest, EchoResponse>(
+            _hubConnection.ConnectionId!, new EchoRequest("hello"), TimeSpan.FromSeconds(5));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Reply.Should().Be("ClientEcho: hello");
+    }
+
+    [Fact]
     public async Task ApiKey_Rejection_ClientCannotConnect()
     {
         // Start a second server with API key required

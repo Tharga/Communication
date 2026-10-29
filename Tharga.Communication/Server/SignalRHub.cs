@@ -111,7 +111,7 @@ internal sealed class SignalRHub : Hub
         try
         {
             var response = await _messageExecutor.ExecuteAsync(connectionId, wrapper);
-            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, response);
+            await Clients.Client(connectionId).SendAsync(Constants.ResponseMessage, wrapper.Respond(response));
         }
         catch (Exception ex)
         {
