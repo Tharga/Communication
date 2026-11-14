@@ -54,6 +54,23 @@ A host that has no `IHostApplicationBuilder`, and a library that registers its o
 services.AddThargaCommunicationClient(configuration, o => o.ApiKey = "my-secret-key");
 ```
 
+### Named clients
+
+An application can hold more than one connection, for example when a library needs its own server next to the application's. A named client has its own options, connection, reconnect state, subscription state and handlers. The unnamed registration stays the default client and is not affected.
+
+```csharp
+services.AddThargaCommunicationClient("quilt4net", configuration, o =>
+{
+    o.ServerAddress = "https://quilt4net.example";
+    o.ApiKey = "...";
+    o.AdditionalAssemblies = [typeof(SomeLibraryHandler).Assembly];
+});
+
+public MyService([FromKeyedServices("quilt4net")] IClientCommunication client) { }
+```
+
+Each name binds its own section, `Tharga:Communication:<name>`. `ISignalRHostedService` (connection state events) and `IHandlerTypeService` are also keyed by name. A named client looks for handlers only in the Tharga.Communication assembly and its `AdditionalAssemblies`, not in the application's own assemblies, so its handlers do not run for the default client's messages. The default client's scan covers the application's assemblies, so avoid giving a library handler the same message type as one the application scans.
+
 ### API key validation
 
 By default, the server accepts all connections. To require API keys, set `ApiKeys` on the server options:
