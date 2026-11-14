@@ -94,7 +94,7 @@ builder.AddThargaCommunicationServer(options =>
 });
 ```
 
-The validator decides everything — including whether to accept empty keys (return `IsValid = true, KeyId = null` to allow anonymous), or how to identify the matched key. `KeyId` and `KeyName` flow through to `IClientConnectionInfo`, where consumers can use them for admin UIs and audit logs.
+The validator decides everything — including whether to accept empty keys (return `IsValid = true, KeyId = null` to allow anonymous), or how to identify the matched key. `KeyId` and `KeyName` flow through to `IClientConnectionInfo`, where consumers can use them for admin UIs and audit logs. A validator can also return `Metadata` (a string dictionary, for example the tenant that owns the key). It reaches `ClientConnection.Metadata`, `IClientConnectionInfo.Metadata` and the `Build` method of `ClientStateServiceBase<T>`, and is `null` when the validator supplies none.
 
 > **Need HTTP context?** Inject `IHttpContextAccessor` into your validator if you need access to the request (IP allowlists, custom headers, etc.). The framework intentionally does not pass `HttpContext` to keep `IApiKeyValidator` narrow and testable.
 

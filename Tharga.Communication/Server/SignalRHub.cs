@@ -52,7 +52,8 @@ internal sealed class SignalRHub : Hub
             Type = type,
             Version = version,
             KeyId = validation.KeyId,
-            KeyName = validation.KeyName
+            KeyName = validation.KeyName,
+            Metadata = validation.Metadata
         };
 
         _logger.LogInformation("Client '{instance}' connected '{connectionId}' on machine {machine} version {version} (key {keyId}).", clientConnection.Instance, clientConnection.ConnectionId, clientConnection.Machine, version, clientConnection.KeyId ?? "<none>");

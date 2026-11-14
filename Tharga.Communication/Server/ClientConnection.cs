@@ -25,4 +25,7 @@ public record ClientConnection
 
     /// <summary>Gets the optional human-readable name of the API key that authenticated this connection.</summary>
     public string KeyName { get; init; }
+
+    /// <summary>Gets the consumer-defined values the API key validator attached to this connection, if any.</summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; init; }
 }

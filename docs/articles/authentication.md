@@ -55,6 +55,7 @@ The validator returns an `ApiKeyValidationResult` with:
 - **`IsValid`** — whether to accept the connection (`false` → connection aborted)
 - **`KeyId`** — stable identifier of the matched key (e.g. a Guid). Surfaces on `IClientConnectionInfo.KeyId` so admin UIs can correlate connections to keys
 - **`KeyName`** — optional human-readable label for the key (e.g. *"production-monitor"*). Surfaces on `IClientConnectionInfo.KeyName`
+- **`Metadata`** — optional string dictionary of consumer-defined values resolved with the key (e.g. the owning tenant). Surfaces on `IClientConnectionInfo.Metadata` and is passed to `ClientStateServiceBase<T>.Build`; `null` when the validator returns none
 
 The validator decides everything — including whether to accept empty/missing keys. To allow anonymous connections, return `{ IsValid = true, KeyId = null }` for empty input.
 

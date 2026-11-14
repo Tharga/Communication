@@ -88,6 +88,69 @@ public class ClientStateServiceBaseTests
         sut.Built[0].KeyName.Should().BeNull();
     }
 
+    [Fact]
+    public async Task ConnectAsync_PassesMetadataToBuild()
+    {
+        var serverOptions = new ServerOptions();
+        serverOptions.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+        var sp = new ServiceProviderStub(new MemoryClientRepository<ClientConnectionInfo>());
+        var sut = new TestStateService(sp, Options.Create(serverOptions));
+
+        await sut.ConnectAsync(new ClientConnection
+        {
+            Instance = Guid.NewGuid(),
+            ConnectionId = "conn-1",
+            Machine = "m1",
+            Type = "t1",
+            Version = "1.0",
+            Metadata = new Dictionary<string, string> { ["tenant"] = "acme" }
+        });
+
+        sut.Built[0].Metadata.Should().ContainKey("tenant").WhoseValue.Should().Be("acme");
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WithoutMetadata_PassesNullToBuild()
+    {
+        var serverOptions = new ServerOptions();
+        serverOptions.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+        var sp = new ServiceProviderStub(new MemoryClientRepository<ClientConnectionInfo>());
+        var sut = new TestStateService(sp, Options.Create(serverOptions));
+
+        await sut.ConnectAsync(new ClientConnection
+        {
+            Instance = Guid.NewGuid(),
+            ConnectionId = "conn-1",
+            Machine = "m1",
+            Type = "t1",
+            Version = "1.0"
+        });
+
+        sut.Built[0].Metadata.Should().BeNull();
+    }
+
+    [Fact]
+    public void IClientConnectionInfo_ImplementationWithoutMetadata_ReportsNull()
+    {
+        IClientConnectionInfo info = new LegacyConnectionInfo();
+
+        info.Metadata.Should().BeNull();
+    }
+
+    private sealed class LegacyConnectionInfo : IClientConnectionInfo
+    {
+        public Guid Instance => Guid.Empty;
+        public string ConnectionId => null;
+        public string Machine => null;
+        public string Type => null;
+        public string Version => null;
+        public string KeyId => null;
+        public string KeyName => null;
+        public bool IsConnected { get; init; }
+        public DateTime ConnectTime => default;
+        public DateTime? DisconnectTime { get; init; }
+    }
+
     private class TestStateService : ClientStateServiceBase<ClientConnectionInfo>
     {
         public TestStateService(IServiceProvider sp, IOptions<ServerOptions> options) : base(sp, options) { }

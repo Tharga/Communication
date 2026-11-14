@@ -102,6 +102,7 @@ public class CustomApiKeyValidatorTests
 
             built.KeyId.Should().Be("test-key-id");
             built.KeyName.Should().Be("Test Friendly Name");
+            built.Metadata.Should().ContainKey("tenant").WhoseValue.Should().Be("acme");
 
             await connection.DisposeAsync();
         }
@@ -148,7 +149,8 @@ public class CustomApiKeyValidatorTests
             {
                 IsValid = true,
                 KeyId = "test-key-id",
-                KeyName = "Test Friendly Name"
+                KeyName = "Test Friendly Name",
+                Metadata = new Dictionary<string, string> { ["tenant"] = "acme" }
             });
         }
     }
