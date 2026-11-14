@@ -1,6 +1,7 @@
 using System.Reflection;
 using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Tharga.Communication.Contract;
 using Tharga.Communication.MessageHandler;
 using Xunit;
 
@@ -46,6 +47,36 @@ public class HandlerTypeServiceTests
         // so they may not be discovered by default assembly scanning.
         // This test documents the default behavior.
         handlers.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void GetHandlerTypes_WithAdditionalAssembly_KeepsDefaultScan()
+    {
+        var services = new ServiceCollection();
+
+        var handlers = HandlerTypeService.GetHandlerTypes(services, [typeof(object).Assembly]);
+
+        handlers.Should().ContainKey(typeof(TestMessage));
+    }
+
+    [Fact]
+    public void GetHandlerTypes_WithAdditionalAssembly_AlwaysIncludesLibraryHandlers()
+    {
+        var services = new ServiceCollection();
+
+        var handlers = HandlerTypeService.GetHandlerTypes(services, [typeof(object).Assembly]);
+
+        handlers.Should().ContainKey(typeof(SubscriptionStateChanged));
+    }
+
+    [Fact]
+    public void GetHandlerTypes_WithListedAssemblyAlsoInDefaultScan_DoesNotFailOnDuplicates()
+    {
+        var services = new ServiceCollection();
+
+        var act = () => HandlerTypeService.GetHandlerTypes(services, [Assembly.GetExecutingAssembly(), typeof(HandlerTypeService).Assembly]);
+
+        act.Should().NotThrow();
     }
 
     [Fact]

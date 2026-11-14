@@ -195,7 +195,7 @@ Every client option except `AdditionalAssemblies` can be set in the `Tharga:Comm
 | `ApiKey` | API key sent to the server for authentication | *(none)* |
 | `ClientType` | Client identity sent to the server | entry assembly name |
 | `ClientMachine` | Machine name sent to the server | `Environment.MachineName` |
-| `AdditionalAssemblies` | Extra assemblies to scan for message handlers (code only) | *(none)* |
+| `AdditionalAssemblies` | Extra assemblies scanned for message handlers in addition to the default scan (code only) | *(none)* |
 | `SendMessageTimeout` | Default timeout for request-response messages | `60s` |
 
 ### Server options
@@ -205,7 +205,7 @@ The server requires registering a `ClientStateServiceBase` implementation and a 
 | Property | Description | Default |
 |---|---|---|
 | `ApiKeys` | Keys accepted by the default `IApiKeyValidator` | *(none — all connections accepted)* |
-| `AdditionalAssemblies` | Extra assemblies to scan for message handlers | *(none)* |
+| `AdditionalAssemblies` | Extra assemblies scanned for message handlers in addition to the default scan | *(none)* |
 
 ## Authentication
 
@@ -215,7 +215,7 @@ See [Authentication](https://communication.tharga.net/articles/authentication.ht
 
 ## Handler discovery
 
-By default, message handlers are discovered by scanning assemblies that match the entry assembly name prefix. If your handlers are in an external package (e.g. a separate NuGet), they won't be found automatically. Use `AdditionalAssemblies` to include them:
+By default, message handlers are discovered by scanning assemblies that match the entry assembly name prefix. If your handlers are in an external package (e.g. a separate NuGet), they won't be found automatically. Use `AdditionalAssemblies` to include them. The listed assemblies are scanned in addition to the default scan and the Tharga.Communication assembly itself, so handlers in the application are kept and the built-in subscription handler is always found:
 
 ```csharp
 builder.AddThargaCommunicationClient(o =>
