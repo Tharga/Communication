@@ -27,25 +27,44 @@ public static class CommunicationClientRegistration
     /// <param name="options">Optional callback to override configuration values.</param>
     public static void AddThargaCommunicationClient(this IHostApplicationBuilder builder, Action<CommunicationOptions> options = default)
     {
-        var configuration = builder.Services.BuildServiceProvider().GetService<IConfiguration>();
+        builder.Services.AddThargaCommunicationClient(builder.Configuration, options);
+    }
 
+    /// <summary>
+    /// Registers all required client-side communication services on an <see cref="IServiceCollection"/>,
+    /// for hosts that are not built with an <see cref="IHostApplicationBuilder"/> and for libraries that register their own services.
+    /// No service provider is built during registration.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">
+    /// Optional configuration. When given, the whole <c>Tharga:Communication</c> section is bound to <see cref="CommunicationOptions"/>,
+    /// except <see cref="CommunicationOptions.AdditionalAssemblies"/>, which is set in code only.
+    /// </param>
+    /// <param name="options">Optional callback that runs after the configuration is bound, so values set in code take precedence.</param>
+    public static void AddThargaCommunicationClient(this IServiceCollection services, IConfiguration configuration = null, Action<CommunicationOptions> options = null)
+    {
         var o = new CommunicationOptions();
-        configuration.GetSection(ConfigurationSection).Bind(o);
+        configuration?.GetSection(ConfigurationSection).Bind(o);
         o.Pattern ??= Constants.DefaultPattern;
-        o.ReconnectDelays ??= [TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)];
+        o.ReconnectDelays ??= DefaultReconnectDelays();
         options?.Invoke(o);
-        builder.Services.AddSingleton(Options.Create(o));
+        services.AddSingleton(Options.Create(o));
 
-        builder.Services.AddSingleton<IInstanceService, InstanceService>();
-        builder.Services.AddSingleton<SignalRHostedService>();
-        builder.Services.AddSingleton<ISignalRHostedService>(sp => sp.GetRequiredService<SignalRHostedService>());
-        builder.Services.AddHostedService(sp => sp.GetRequiredService<SignalRHostedService>());
+        services.AddSingleton<IInstanceService, InstanceService>();
+        services.AddSingleton<SignalRHostedService>();
+        services.AddSingleton<ISignalRHostedService>(sp => sp.GetRequiredService<SignalRHostedService>());
+        services.AddHostedService(sp => sp.GetRequiredService<SignalRHostedService>());
 
-        builder.Services.AddSingleton<ClientResponseMediator>();
-        builder.Services.TryAddSingleton<SubscriptionStateTracker>();
-        builder.Services.AddSingleton<IClientCommunication, ClientCommunication>();
-        builder.Services.AddTransient<IMessageExecutor, MessageExecutor>();
-        var handlerTypes = HandlerTypeService.GetHandlerTypes(builder.Services, o.AdditionalAssemblies);
-        builder.Services.AddSingleton<IHandlerTypeService>(_ => new HandlerTypeService(handlerTypes));
+        services.AddSingleton<ClientResponseMediator>();
+        services.TryAddSingleton<SubscriptionStateTracker>();
+        services.AddSingleton<IClientCommunication, ClientCommunication>();
+        services.AddTransient<IMessageExecutor, MessageExecutor>();
+        var handlerTypes = HandlerTypeService.GetHandlerTypes(services, o.AdditionalAssemblies);
+        services.AddSingleton<IHandlerTypeService>(_ => new HandlerTypeService(handlerTypes));
+    }
+
+    private static TimeSpan[] DefaultReconnectDelays()
+    {
+        return [TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30)];
     }
 }

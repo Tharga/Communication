@@ -188,6 +188,73 @@ public class CommunicationClientRegistrationTests
         options.ClientType.Should().Be("configured-type");
     }
 
+    [Fact]
+    public void AddThargaCommunicationClient_OnServiceCollection_BindsTheWholeSection()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["Tharga:Communication:ServerAddress"] = "https://services:5001",
+                ["Tharga:Communication:ApiKey"] = "services-key",
+                ["Tharga:Communication:ClientType"] = "services-type",
+                ["Tharga:Communication:ClientMachine"] = "services-machine",
+                ["Tharga:Communication:SendMessageTimeout"] = "00:00:15"
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddThargaCommunicationClient(configuration);
+
+        var options = services.BuildServiceProvider().GetRequiredService<IOptions<ClientOptions>>().Value;
+        options.ServerAddress.Should().Be("https://services:5001");
+        options.ApiKey.Should().Be("services-key");
+        options.ClientType.Should().Be("services-type");
+        options.ClientMachine.Should().Be("services-machine");
+        options.SendMessageTimeout.Should().Be(TimeSpan.FromSeconds(15));
+        options.Pattern.Should().Be("hub");
+    }
+
+    [Fact]
+    public void AddThargaCommunicationClient_OnServiceCollection_CallbackWinsOverConfiguration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string> { ["Tharga:Communication:ApiKey"] = "configured-key" })
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddThargaCommunicationClient(configuration, o => o.ApiKey = "code-key");
+
+        services.BuildServiceProvider().GetRequiredService<IOptions<ClientOptions>>().Value.ApiKey.Should().Be("code-key");
+    }
+
+    [Fact]
+    public void AddThargaCommunicationClient_OnServiceCollection_WithoutConfiguration_UsesDefaultsAndCallback()
+    {
+        var services = new ServiceCollection();
+
+        services.AddThargaCommunicationClient(options: o => o.ServerAddress = "https://code:5001");
+
+        var options = services.BuildServiceProvider().GetRequiredService<IOptions<ClientOptions>>().Value;
+        options.ServerAddress.Should().Be("https://code:5001");
+        options.Pattern.Should().Be("hub");
+    }
+
+    [Fact]
+    public void AddThargaCommunicationClient_OnServiceCollection_ResolvesEverythingFromTheApplicationContainer()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddThargaCommunicationClient(options: o => o.ServerAddress = "https://code:5001");
+        services.AddSingleton<LateRegistration>();
+
+        using var provider = services.BuildServiceProvider();
+
+        provider.GetRequiredService<LateRegistration>().Should().NotBeNull();
+        provider.GetRequiredService<ISignalRHostedService>().Should().BeSameAs(provider.GetServices<IHostedService>().Single());
+    }
+
+    private sealed class LateRegistration;
+
     private static ClientOptions RegisterWithConfig(Dictionary<string, string> values, Action<ClientOptions> callback = null)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings

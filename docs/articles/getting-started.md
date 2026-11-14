@@ -66,6 +66,12 @@ builder.AddThargaCommunicationClient(o =>
 });
 ```
 
+A host without an `IHostApplicationBuilder`, and a library that registers its own services, can register on the `IServiceCollection`. The configuration is optional, and no service provider is built during registration:
+
+```csharp
+services.AddThargaCommunicationClient(configuration, o => o.ApiKey = "my-secret-key");
+```
+
 The client maintains a persistent SignalR connection with automatic reconnection.
 
 ## Next steps

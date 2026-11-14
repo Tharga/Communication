@@ -48,6 +48,12 @@ builder.AddThargaCommunicationClient();
 
 Every client option except `AdditionalAssemblies` can be set in this section, `ApiKey` included. An options callback passed to `AddThargaCommunicationClient` runs after the section is read, so a value set in code wins.
 
+A host that has no `IHostApplicationBuilder`, and a library that registers its own services, can register on the `IServiceCollection` instead. No service provider is built during registration:
+
+```csharp
+services.AddThargaCommunicationClient(configuration, o => o.ApiKey = "my-secret-key");
+```
+
 ### API key validation
 
 By default, the server accepts all connections. To require API keys, set `ApiKeys` on the server options:
