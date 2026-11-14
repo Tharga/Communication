@@ -17,6 +17,19 @@ await serverCommunication.PostAsync(connectionId, new ConfigChanged());
 await serverCommunication.PostToAllAsync(new MaintenanceWindow(start, end));
 ```
 
+## Groups
+
+Groups are thin wrappers over SignalR groups. A server can reach a subset of clients in one send instead of posting to each connection.
+
+```csharp
+await serverCommunication.AddToGroupAsync(connectionId, "team-a");
+await serverCommunication.PostToGroupAsync("team-a", new ConfigChanged());
+await serverCommunication.PostToGroupsAsync(["team-a", "team-b"], new ConfigChanged());
+await serverCommunication.RemoveFromGroupAsync(connectionId, "team-a");
+```
+
+SignalR forgets group membership when a connection closes, and a reconnecting client gets a new connection id. The server has to add the connection to its groups again after each reconnect, for example by overriding `ConnectAsync` in its `ClientStateServiceBase<T>`. A connection that is in several of the groups passed to `PostToGroupsAsync` receives the message once per group.
+
 ## Request-response
 
 The sender waits for a typed response with a configurable timeout (default 60s).

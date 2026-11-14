@@ -26,6 +26,39 @@ public interface IServerCommunication
     Task PostToAllAsync<T>(T message);
 
     /// <summary>
+    /// Adds a connection to a SignalR group.
+    /// SignalR forgets group membership when a connection closes and a reconnecting client gets a new connection ID,
+    /// so the server has to add the connection to its groups again after each reconnect.
+    /// </summary>
+    /// <param name="connectionId">The SignalR connection ID to add.</param>
+    /// <param name="group">The group name.</param>
+    Task AddToGroupAsync(string connectionId, string group) => throw new NotSupportedException($"{GetType().Name} does not support groups.");
+
+    /// <summary>
+    /// Removes a connection from a SignalR group.
+    /// </summary>
+    /// <param name="connectionId">The SignalR connection ID to remove.</param>
+    /// <param name="group">The group name.</param>
+    Task RemoveFromGroupAsync(string connectionId, string group) => throw new NotSupportedException($"{GetType().Name} does not support groups.");
+
+    /// <summary>
+    /// Sends a fire-and-forget message to every connection in a group, in a single send.
+    /// </summary>
+    /// <typeparam name="T">The message type.</typeparam>
+    /// <param name="group">The group name.</param>
+    /// <param name="message">The message payload to send.</param>
+    Task PostToGroupAsync<T>(string group, T message) => throw new NotSupportedException($"{GetType().Name} does not support groups.");
+
+    /// <summary>
+    /// Sends a fire-and-forget message to every connection in any of the groups, in a single send.
+    /// SignalR sends to each group separately, so a connection that is in more than one of the groups receives the message once per group.
+    /// </summary>
+    /// <typeparam name="T">The message type.</typeparam>
+    /// <param name="groups">The group names.</param>
+    /// <param name="message">The message payload to send.</param>
+    Task PostToGroupsAsync<T>(IReadOnlyList<string> groups, T message) => throw new NotSupportedException($"{GetType().Name} does not support groups.");
+
+    /// <summary>
     /// Sends a request to a specific client and waits for a typed response.
     /// </summary>
     /// <typeparam name="TRequest">The request message type.</typeparam>
