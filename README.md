@@ -24,6 +24,8 @@ A SignalR-based communication framework for .NET with built-in message handler p
 dotnet add package Tharga.Communication
 ```
 
+Supported frameworks: .NET 10 and .NET 11 (`net10.0` and `net11.0`).
+
 ## Quick start
 
 ### Server setup

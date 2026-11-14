@@ -2,7 +2,7 @@
 
 [![GitHub repo](https://img.shields.io/github/repo-size/Tharga/Communication?style=flat&logo=github&logoColor=red&label=Repo)](https://github.com/Tharga/Communication)
 
-A SignalR-based communication framework for .NET with built-in message handler patterns for request-response and fire-and-forget messaging.
+A SignalR-based communication framework for .NET with built-in message handler patterns for request-response and fire-and-forget messaging. Supports .NET 10 and .NET 11.
 
 ## Features
 
