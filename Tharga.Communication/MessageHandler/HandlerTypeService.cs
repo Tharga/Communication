@@ -25,10 +25,14 @@ public class HandlerTypeService : IHandlerTypeService
 
     public static Dictionary<Type, HandlerTypeInfo> GetHandlerTypes(IServiceCollection serviceCollection, IEnumerable<Assembly> assemblies = null)
     {
+        return GetHandlerTypes(serviceCollection, assemblies, true);
+    }
+
+    internal static Dictionary<Type, HandlerTypeInfo> GetHandlerTypes(IServiceCollection serviceCollection, IEnumerable<Assembly> assemblies, bool includeDefaultScan)
+    {
         var assemblyArray = assemblies?.ToArray();
 
-        var postHandlerTypes = AssemblyService
-            .GetTypes(x => x.IsOfType(typeof(PostMessageHandlerBase<>)), assemblyArray)
+        var postHandlerTypes = ScanTypes(x => x.IsOfType(typeof(PostMessageHandlerBase<>)), assemblyArray, includeDefaultScan)
             .Where(x => x.BaseType?.IsGenericType ?? false)
             .Where(x => x != typeof(PostMessageHandlerBase<>))
             .Where(x => !x.IsAbstract)
@@ -50,8 +54,7 @@ public class HandlerTypeService : IHandlerTypeService
             })
             .Where(x => x != null);
 
-        var sendHandlerTypes = AssemblyService
-            .GetTypes(x => x.IsOfType(typeof(SendMessageHandlerBase<,>)), assemblyArray)
+        var sendHandlerTypes = ScanTypes(x => x.IsOfType(typeof(SendMessageHandlerBase<,>)), assemblyArray, includeDefaultScan)
             .Where(x => x.BaseType?.IsGenericType ?? false)
             .Where(x => x != typeof(SendMessageHandlerBase<,>))
             .Where(x => !x.IsAbstract)
@@ -74,5 +77,21 @@ public class HandlerTypeService : IHandlerTypeService
             .Where(x => x != null);
 
         return postHandlerTypes.Union(sendHandlerTypes).ToDictionary(x => x.PayloadType, x => x);
+    }
+
+    private static IEnumerable<TypeInfo> ScanTypes(Func<TypeInfo, bool> predicate, Assembly[] additionalAssemblies, bool includeDefaultScan)
+    {
+        var types = AssemblyService.GetTypes(predicate, [typeof(HandlerTypeService).Assembly]);
+        if (includeDefaultScan)
+        {
+            types = AssemblyService.GetTypes(predicate).Concat(types);
+        }
+
+        if (additionalAssemblies is { Length: > 0 })
+        {
+            types = types.Concat(AssemblyService.GetTypes(predicate, additionalAssemblies));
+        }
+
+        return types.DistinctBy(x => x.AsType());
     }
 }

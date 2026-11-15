@@ -20,7 +20,7 @@ public record CommunicationOptions
 
     /// <summary>
     /// Gets or sets additional assemblies to scan for message handlers.
-    /// Use this when handlers are defined in external packages that are not discovered by the default assembly scan.
+    /// The listed assemblies are scanned in addition to the default scan, not instead of it. Use this when handlers are defined in external packages that are not discovered by the default assembly scan.
     /// </summary>
     public System.Reflection.Assembly[] AdditionalAssemblies { get; set; }
 

@@ -20,4 +20,11 @@ public record ApiKeyValidationResult
     /// Useful for admin UIs and audit logs. Null if the validator does not surface a name.
     /// </summary>
     public string KeyName { get; init; }
+
+    /// <summary>
+    /// Optional consumer-defined values resolved together with the key (e.g. the tenant or team that owns it).
+    /// They are carried to <see cref="ClientConnection.Metadata"/> and <see cref="IClientConnectionInfo.Metadata"/>
+    /// so that <see cref="ClientStateServiceBase{T}"/> can use them when it builds a connection. Null when none are supplied.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; init; }
 }

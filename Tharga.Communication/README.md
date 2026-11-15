@@ -2,7 +2,7 @@
 
 [![GitHub repo](https://img.shields.io/github/repo-size/Tharga/Communication?style=flat&logo=github&logoColor=red&label=Repo)](https://github.com/Tharga/Communication)
 
-A SignalR-based communication framework for .NET with built-in message handler patterns for request-response and fire-and-forget messaging.
+A SignalR-based communication framework for .NET with built-in message handler patterns for request-response and fire-and-forget messaging. Supports .NET 10 and .NET 11.
 
 ## Features
 
@@ -47,6 +47,29 @@ builder.AddThargaCommunicationClient();
 ```
 
 Every client option except `AdditionalAssemblies` can be set in this section, `ApiKey` included. An options callback passed to `AddThargaCommunicationClient` runs after the section is read, so a value set in code wins.
+
+A host that has no `IHostApplicationBuilder`, and a library that registers its own services, can register on the `IServiceCollection` instead. No service provider is built during registration:
+
+```csharp
+services.AddThargaCommunicationClient(configuration, o => o.ApiKey = "my-secret-key");
+```
+
+### Named clients
+
+An application can hold more than one connection, for example when a library needs its own server next to the application's. A named client has its own options, connection, reconnect state, subscription state and handlers. The unnamed registration stays the default client and is not affected.
+
+```csharp
+services.AddThargaCommunicationClient("quilt4net", configuration, o =>
+{
+    o.ServerAddress = "https://quilt4net.example";
+    o.ApiKey = "...";
+    o.AdditionalAssemblies = [typeof(SomeLibraryHandler).Assembly];
+});
+
+public MyService([FromKeyedServices("quilt4net")] IClientCommunication client) { }
+```
+
+Each name binds its own section, `Tharga:Communication:<name>`. `ISignalRHostedService` (connection state events) and `IHandlerTypeService` are also keyed by name. A named client looks for handlers only in the Tharga.Communication assembly and its `AdditionalAssemblies`, not in the application's own assemblies, so its handlers do not run for the default client's messages. The default client's scan covers the application's assemblies, so avoid giving a library handler the same message type as one the application scans.
 
 ### API key validation
 
@@ -94,7 +117,7 @@ builder.AddThargaCommunicationServer(options =>
 });
 ```
 
-The validator decides everything — including whether to accept empty keys (return `IsValid = true, KeyId = null` to allow anonymous), or how to identify the matched key. `KeyId` and `KeyName` flow through to `IClientConnectionInfo`, where consumers can use them for admin UIs and audit logs.
+The validator decides everything — including whether to accept empty keys (return `IsValid = true, KeyId = null` to allow anonymous), or how to identify the matched key. `KeyId` and `KeyName` flow through to `IClientConnectionInfo`, where consumers can use them for admin UIs and audit logs. A validator can also return `Metadata` (a string dictionary, for example the tenant that owns the key). It reaches `ClientConnection.Metadata`, `IClientConnectionInfo.Metadata` and the `Build` method of `ClientStateServiceBase<T>`, and is `null` when the validator supplies none.
 
 > **Need HTTP context?** Inject `IHttpContextAccessor` into your validator if you need access to the request (IP allowlists, custom headers, etc.). The framework intentionally does not pass `HttpContext` to keep `IApiKeyValidator` narrow and testable.
 

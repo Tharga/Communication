@@ -66,6 +66,24 @@ builder.AddThargaCommunicationClient(o =>
 });
 ```
 
+A host without an `IHostApplicationBuilder`, and a library that registers its own services, can register on the `IServiceCollection`. The configuration is optional, and no service provider is built during registration:
+
+```csharp
+services.AddThargaCommunicationClient(configuration, o => o.ApiKey = "my-secret-key");
+```
+
+To hold more than one connection, register a named client. It has its own options, connection, reconnect state, subscription state and handlers, and binds the `Tharga:Communication:<name>` section. A named client scans only the Tharga.Communication assembly and its `AdditionalAssemblies` for handlers:
+
+```csharp
+services.AddThargaCommunicationClient("quilt4net", o =>
+{
+    o.ServerAddress = "https://quilt4net.example";
+    o.AdditionalAssemblies = [typeof(SomeLibraryHandler).Assembly];
+});
+
+public MyService([FromKeyedServices("quilt4net")] IClientCommunication client) { }
+```
+
 The client maintains a persistent SignalR connection with automatic reconnection.
 
 ## Next steps

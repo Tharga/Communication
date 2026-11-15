@@ -67,6 +67,37 @@ internal class ServerCommunication : IServerCommunication
             .SendAsync(Constants.PostMessage, requestWrapper);
     }
 
+    public Task AddToGroupAsync(string connectionId, string group)
+    {
+        return _signalRHub.Groups.AddToGroupAsync(connectionId, group);
+    }
+
+    public Task RemoveFromGroupAsync(string connectionId, string group)
+    {
+        return _signalRHub.Groups.RemoveFromGroupAsync(connectionId, group);
+    }
+
+    public Task PostToGroupAsync<T>(string group, T message)
+    {
+        return _signalRHub.Clients.Group(group)
+            .SendAsync(Constants.PostMessage, CreatePostWrapper(message));
+    }
+
+    public Task PostToGroupsAsync<T>(IReadOnlyList<string> groups, T message)
+    {
+        return _signalRHub.Clients.Groups(groups)
+            .SendAsync(Constants.PostMessage, CreatePostWrapper(message));
+    }
+
+    private static RequestWrapper CreatePostWrapper<T>(T message)
+    {
+        return new RequestWrapper
+        {
+            Type = typeof(T).AssemblyQualifiedName,
+            Payload = JsonSerializer.Serialize(message)
+        };
+    }
+
     public async Task<Response<TResponse>> SendMessageAsync<TRequest, TResponse>(string connectionId, TRequest message, TimeSpan? timeout)
     {
         var effectiveTimeout = timeout ?? _defaultTimeout;

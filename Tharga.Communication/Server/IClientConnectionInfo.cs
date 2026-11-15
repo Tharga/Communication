@@ -26,6 +26,12 @@ public interface IClientConnectionInfo
     /// <summary>Gets the optional human-readable name of the API key that authenticated this connection.</summary>
     string KeyName { get; }
 
+    /// <summary>
+    /// Gets the consumer-defined values the API key validator attached to this connection, or <c>null</c> when there are none.
+    /// Implementations written before this member existed keep compiling and report <c>null</c>.
+    /// </summary>
+    IReadOnlyDictionary<string, string> Metadata => null;
+
     /// <summary>Gets or initializes whether the client is currently connected.</summary>
     bool IsConnected { get; init; }
 
