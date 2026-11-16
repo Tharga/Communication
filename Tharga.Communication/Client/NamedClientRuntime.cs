@@ -47,9 +47,16 @@ internal sealed class NamedClientRuntime
 
         public Task<IMessageWrapper> ExecuteAsync(string connectionId, IMessageWrapper wrapper)
         {
-            if (wrapper.Type?.Split(',')[0].Trim() == typeof(SubscriptionStateChanged).FullName)
+            var type = wrapper.Type?.Split(',')[0].Trim();
+            if (type == typeof(SubscriptionStateChanged).FullName)
             {
                 _tracker.Update(JsonSerializer.Deserialize<SubscriptionStateChanged>(wrapper.Payload));
+                return Task.FromResult<IMessageWrapper>(null);
+            }
+
+            if (type == typeof(SubscriptionSnapshot).FullName)
+            {
+                _tracker.Replace(JsonSerializer.Deserialize<SubscriptionSnapshot>(wrapper.Payload));
                 return Task.FromResult<IMessageWrapper>(null);
             }
 

@@ -88,6 +88,8 @@ public abstract class ClientStateServiceBase<T> : ClientStateServiceBase
     public override async Task DisconnectedAsync(string connectionId)
     {
         var updated = await _repository.DeleteAsync(connectionId);
+        if (updated is null) return;
+
         DisconnectedEvent?.Invoke(this, new DisconnectedEventArgs(updated));
     }
 

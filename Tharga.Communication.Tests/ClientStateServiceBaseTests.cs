@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Options;
 using Tharga.Communication.Server;
+using Tharga.Communication.Server.Communication;
 using Xunit;
 using ServerOptions = CommunicationOptions;
 
@@ -127,6 +128,36 @@ public class ClientStateServiceBaseTests
         });
 
         sut.Built[0].Metadata.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DisconnectedAsync_ConnectionThatWasNeverRegistered_DoesNotRaiseDisconnectedEvent()
+    {
+        var serverOptions = new ServerOptions();
+        serverOptions.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+        var sut = new TestStateService(new ServiceProviderStub(new MemoryClientRepository<ClientConnectionInfo>()), Options.Create(serverOptions));
+        var raised = new List<DisconnectedEventArgs>();
+        sut.DisconnectedEvent += (_, e) => raised.Add(e);
+
+        await sut.DisconnectedAsync("never-registered");
+
+        raised.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DisconnectedAsync_RegisteredConnection_RaisesDisconnectedEventWithTheClient()
+    {
+        var serverOptions = new ServerOptions();
+        serverOptions.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+        var sut = new TestStateService(new ServiceProviderStub(new MemoryClientRepository<ClientConnectionInfo>()), Options.Create(serverOptions));
+        var raised = new List<DisconnectedEventArgs>();
+        sut.DisconnectedEvent += (_, e) => raised.Add(e);
+        await sut.ConnectAsync(new ClientConnection { Instance = Guid.NewGuid(), ConnectionId = "conn-1", Machine = "m1", Type = "t1", Version = "1.0" });
+
+        await sut.DisconnectedAsync("conn-1");
+
+        raised.Should().ContainSingle();
+        raised[0].Item.ConnectionId.Should().Be("conn-1");
     }
 
     [Fact]

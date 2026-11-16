@@ -9,7 +9,8 @@ namespace Tharga.Communication.Client;
 /// </summary>
 internal class SubscriptionStateTracker
 {
-    private readonly ConcurrentDictionary<string, bool> _activeTopics = new();
+    private readonly ConcurrentDictionary<string, SubscriptionStateChanged> _activeTopics = new();
+    private readonly object _writeLock = new();
 
     /// <summary>
     /// Raised when any subscription state changes.
@@ -23,16 +24,51 @@ internal class SubscriptionStateTracker
     {
         var key = BuildKey(message.Topic, message.Key);
 
-        if (message.HasSubscribers)
+        lock (_writeLock)
         {
-            _activeTopics[key] = true;
-        }
-        else
-        {
-            _activeTopics.TryRemove(key, out _);
+            if (message.HasSubscribers)
+            {
+                _activeTopics[key] = message;
+            }
+            else
+            {
+                _activeTopics.TryRemove(key, out _);
+            }
         }
 
         SubscriptionChanged?.Invoke(this, message);
+    }
+
+    /// <summary>
+    /// Replaces the local state with the subscriptions the server reports as active.
+    /// Raises <see cref="SubscriptionChanged"/> for every topic whose state differs afterwards.
+    /// </summary>
+    public void Replace(SubscriptionSnapshot snapshot)
+    {
+        var active = new Dictionary<string, SubscriptionStateChanged>();
+        foreach (var subscription in snapshot.Subscriptions ?? [])
+        {
+            active[BuildKey(subscription.Topic, subscription.Key)] = subscription with { HasSubscribers = true };
+        }
+
+        var changes = new List<SubscriptionStateChanged>();
+        lock (_writeLock)
+        {
+            foreach (var key in _activeTopics.Keys.Where(x => !active.ContainsKey(x)).ToArray())
+            {
+                if (_activeTopics.TryRemove(key, out var removed)) changes.Add(removed with { HasSubscribers = false });
+            }
+
+            foreach (var (key, subscription) in active)
+            {
+                if (_activeTopics.TryAdd(key, subscription)) changes.Add(subscription);
+            }
+        }
+
+        foreach (var change in changes)
+        {
+            SubscriptionChanged?.Invoke(this, change);
+        }
     }
 
     /// <summary>

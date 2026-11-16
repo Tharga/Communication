@@ -9,6 +9,74 @@ public class SubscriptionStateTrackerTests
 {
     private readonly SubscriptionStateTracker _sut = new();
 
+    private static SubscriptionSnapshot Snapshot(params (string Topic, string Key)[] active) => new()
+    {
+        Subscriptions = active.Select(x => new SubscriptionStateChanged { Topic = x.Topic, Key = x.Key, HasSubscribers = true }).ToArray()
+    };
+
+    [Fact]
+    public void Replace_DropsSubscriptionsMissingFromTheSnapshot()
+    {
+        _sut.Update(new SubscriptionStateChanged { Topic = "X", HasSubscribers = true });
+        _sut.Update(new SubscriptionStateChanged { Topic = "Y", Key = "1", HasSubscribers = true });
+
+        _sut.Replace(Snapshot(("Y", "1")));
+
+        _sut.HasSubscribers("X").Should().BeFalse();
+        _sut.HasSubscribers("Y", "1").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Replace_AddsSubscriptionsFromTheSnapshot()
+    {
+        _sut.Replace(Snapshot(("X", null)));
+
+        _sut.HasSubscribers("X").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Replace_EmptySnapshot_ClearsEverything()
+    {
+        _sut.Update(new SubscriptionStateChanged { Topic = "X", HasSubscribers = true });
+
+        _sut.Replace(Snapshot());
+
+        _sut.HasSubscribers("X").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Replace_RaisesSubscriptionChangedOnlyForWhatDiffers()
+    {
+        _sut.Update(new SubscriptionStateChanged { Topic = "Kept", HasSubscribers = true });
+        _sut.Update(new SubscriptionStateChanged { Topic = "Gone", HasSubscribers = true });
+        var raised = new List<(string Topic, bool HasSubscribers)>();
+        _sut.SubscriptionChanged += (_, e) => raised.Add((e.Topic, e.HasSubscribers));
+
+        _sut.Replace(Snapshot(("Kept", null), ("New", null)));
+
+        raised.Should().BeEquivalentTo(new[] { ("Gone", false), ("New", true) });
+    }
+
+    [Fact]
+    public void Update_WithoutASnapshot_KeepsEarlierSubscriptions()
+    {
+        _sut.Update(new SubscriptionStateChanged { Topic = "X", HasSubscribers = true });
+        _sut.Update(new SubscriptionStateChanged { Topic = "Y", HasSubscribers = true });
+
+        _sut.HasSubscribers("X").Should().BeTrue();
+        _sut.HasSubscribers("Y").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SnapshotHandler_ReplacesTheTrackerState()
+    {
+        _sut.Update(new SubscriptionStateChanged { Topic = "X", HasSubscribers = true });
+
+        await new SubscriptionSnapshotHandler(_sut).Handle(Snapshot());
+
+        _sut.HasSubscribers("X").Should().BeFalse();
+    }
+
     [Fact]
     public void HasSubscribers_NoSubscriptions_ReturnsFalse()
     {

@@ -14,17 +14,17 @@ public class ServerCommunicationSubscriptionTests
 {
     private readonly AutoMocker _mocker = new();
     private readonly Mock<IClientProxy> _allClients = new();
+    private readonly Mock<IHubClients> _hubClients = new();
     private readonly ServerCommunication _sut;
 
     public ServerCommunicationSubscriptionTests()
     {
         _mocker.Use(new SubscriptionManager());
 
-        var hubClients = new Mock<IHubClients>();
-        hubClients.Setup(x => x.All).Returns(_allClients.Object);
+        _hubClients.Setup(x => x.All).Returns(_allClients.Object);
 
         var hubContext = new Mock<IHubContext<SignalRHub>>();
-        hubContext.Setup(x => x.Clients).Returns(hubClients.Object);
+        hubContext.Setup(x => x.Clients).Returns(_hubClients.Object);
         _mocker.Use(hubContext.Object);
 
         _sut = _mocker.CreateInstance<ServerCommunication>();
@@ -147,6 +147,93 @@ public class ServerCommunicationSubscriptionTests
 
         announced.Should().Equal(true, false, true);
         _sut.GetSubscriptions()[$"{typeof(FakeMessage).FullName}:1"].Should().Be(1);
+    }
+
+    [Fact]
+    public async Task UnsubscribeWhileTheConnectSnapshotIsBeingSent_AnnouncesTheUnsubscribeAfterTheSnapshot()
+    {
+        var sent = new List<string>();
+        var snapshotEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSnapshot = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var newClient = new Mock<ISingleClientProxy>();
+        newClient
+            .Setup(x => x.SendCoreAsync(Constants.PostMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Returns<string, object[], CancellationToken>(async (_, args, _) =>
+            {
+                snapshotEntered.TrySetResult();
+                await releaseSnapshot.Task;
+                lock (sent) sent.Add(Describe((RequestWrapper)args[0]));
+            });
+        _allClients
+            .Setup(x => x.SendCoreAsync(Constants.PostMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Returns<string, object[], CancellationToken>((_, args, _) =>
+            {
+                lock (sent) sent.Add(Describe((RequestWrapper)args[0]));
+                return Task.CompletedTask;
+            });
+        _hubClients.Setup(x => x.Client("new")).Returns(newClient.Object);
+
+        var handle = await _sut.SubscribeAsync<FakeMessage>("1");
+        sent.Clear();
+
+        var snapshot = _sut.SendActiveSubscriptionsAsync("new");
+        await snapshotEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var unsubscribe = handle.DisposeAsync().AsTask();
+        await Task.WhenAny(unsubscribe, Task.Delay(200, TestContext.Current.CancellationToken));
+        releaseSnapshot.SetResult();
+        await Task.WhenAll(snapshot, unsubscribe);
+
+        sent.Should().Equal("active", "snapshot", "inactive");
+    }
+
+    [Fact]
+    public async Task SendActiveSubscriptionsAsync_SendsEachActiveSubscriptionFollowedByASnapshot()
+    {
+        var sent = CaptureMessagesTo("new");
+        await _sut.SubscribeAsync<FakeMessage>("1");
+        await _sut.SubscribeAsync<FakeMessage>("2");
+
+        await _sut.SendActiveSubscriptionsAsync("new");
+
+        sent.Should().HaveCount(3);
+        sent.Take(2).Should().AllSatisfy(x => x.Type.Should().StartWith(typeof(SubscriptionStateChanged).FullName!));
+        sent[2].Type.Should().StartWith(typeof(SubscriptionSnapshot).FullName!);
+        var snapshot = JsonSerializer.Deserialize<SubscriptionSnapshot>(sent[2].Payload)!;
+        snapshot.Subscriptions.Select(x => x.Key).Should().BeEquivalentTo(["1", "2"]);
+        snapshot.Subscriptions.Should().AllSatisfy(x => x.HasSubscribers.Should().BeTrue());
+    }
+
+    [Fact]
+    public async Task SendActiveSubscriptionsAsync_NothingActive_SendsAnEmptySnapshot()
+    {
+        var sent = CaptureMessagesTo("new");
+
+        await _sut.SendActiveSubscriptionsAsync("new");
+
+        sent.Should().ContainSingle();
+        sent[0].Type.Should().StartWith(typeof(SubscriptionSnapshot).FullName!);
+        JsonSerializer.Deserialize<SubscriptionSnapshot>(sent[0].Payload)!.Subscriptions.Should().BeEmpty();
+    }
+
+    private static string Describe(RequestWrapper wrapper)
+    {
+        if (wrapper.Type.StartsWith(typeof(SubscriptionSnapshot).FullName!)) return "snapshot";
+        return JsonSerializer.Deserialize<SubscriptionStateChanged>(wrapper.Payload)!.HasSubscribers ? "active" : "inactive";
+    }
+
+    private List<RequestWrapper> CaptureMessagesTo(string connectionId)
+    {
+        var sent = new List<RequestWrapper>();
+        var client = new Mock<ISingleClientProxy>();
+        client
+            .Setup(x => x.SendCoreAsync(Constants.PostMessage, It.IsAny<object[]>(), It.IsAny<CancellationToken>()))
+            .Returns<string, object[], CancellationToken>((_, args, _) =>
+            {
+                lock (sent) sent.Add((RequestWrapper)args[0]);
+                return Task.CompletedTask;
+            });
+        _hubClients.Setup(x => x.Client(connectionId)).Returns(client.Object);
+        return sent;
     }
 
     private static bool VerifySubscriptionState(object[] args, string expectedTopic, string expectedKey, bool expectedHasSubscribers)

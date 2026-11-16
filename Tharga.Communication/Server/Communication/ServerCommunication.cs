@@ -181,14 +181,27 @@ internal class ServerCommunication : IServerCommunication
 
     /// <summary>
     /// Tells one client about every subscription that is currently active.
-    /// Uses the same <see cref="SubscriptionStateChanged"/> message as the 0↔1 notifications,
-    /// so clients of any version apply it.
+    /// Sends one <see cref="SubscriptionStateChanged"/> per subscription, as for the 0↔1 notifications, so clients of any version apply it,
+    /// followed by a <see cref="SubscriptionSnapshot"/> that lets newer clients drop subscriptions that ended while they were away.
     /// </summary>
     internal async Task SendActiveSubscriptionsAsync(string connectionId)
     {
-        foreach (var (topic, key) in _subscriptionManager.GetActiveTopics())
+        await _subscriptionLock.WaitAsync();
+        try
         {
-            await PostAsync(connectionId, new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = true });
+            var active = _subscriptionManager.GetActiveTopics()
+                .Select(x => new SubscriptionStateChanged { Topic = x.Topic, Key = x.Key, HasSubscribers = true })
+                .ToArray();
+            foreach (var subscription in active)
+            {
+                await PostAsync(connectionId, subscription);
+            }
+
+            await PostAsync(connectionId, new SubscriptionSnapshot { Subscriptions = active });
+        }
+        finally
+        {
+            _subscriptionLock.Release();
         }
     }
 
