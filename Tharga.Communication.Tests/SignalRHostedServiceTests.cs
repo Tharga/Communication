@@ -1,4 +1,6 @@
+using System.Reflection;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -98,6 +100,53 @@ public class SignalRHostedServiceTests
 
         act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*no server address*");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ServerUnreachable_DisposesThePreviousConnectionBeforeRetrying()
+    {
+        var instanceService = new Mock<IInstanceService>();
+        instanceService.Setup(x => x.AgentInstanceKey).Returns(Guid.NewGuid());
+        var sut = new SignalRHostedService(
+            instanceService.Object,
+            new Mock<IMessageExecutor>().Object,
+            Options.Create(new ClientOptions { ServerAddress = $"http://127.0.0.1:{UnusedPort()}", Pattern = "hub", ReconnectDelays = [TimeSpan.FromSeconds(1)] }),
+            new ClientResponseMediator(),
+            new Mock<ILogger<SignalRHostedService>>().Object)
+        {
+            RetryDelay = TimeSpan.FromMilliseconds(50)
+        };
+        var field = typeof(SignalRHostedService).GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var ct = TestContext.Current.CancellationToken;
+
+        await sut.StartAsync(ct);
+        var first = await WaitForAsync(() => (HubConnection)field.GetValue(sut), null, ct);
+        await WaitForAsync(() => (HubConnection)field.GetValue(sut), first, ct);
+        await sut.StopAsync(CancellationToken.None);
+
+        var restart = () => first.StartAsync(ct);
+        await restart.Should().ThrowAsync<ObjectDisposedException>();
+    }
+
+    private static int UnusedPort()
+    {
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    private static async Task<HubConnection> WaitForAsync(Func<HubConnection> read, HubConnection differentFrom, CancellationToken cancellationToken)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(TimeSpan.FromSeconds(10));
+        while (true)
+        {
+            var current = read();
+            if (current is not null && !ReferenceEquals(current, differentFrom)) return current;
+            await Task.Delay(10, limit.Token);
+        }
     }
 
     [Fact]

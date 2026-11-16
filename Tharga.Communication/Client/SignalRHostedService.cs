@@ -21,6 +21,8 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
 
     private readonly string _serverAddress;
 
+    internal TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(5);
+
     public SignalRHostedService(IInstanceService instanceService, IMessageExecutor messageExecutor, IOptions<CommunicationOptions> options, ClientResponseMediator responseMediator, ILogger<SignalRHostedService> logger)
     {
         _instanceService = instanceService;
@@ -57,6 +59,7 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
         {
             try
             {
+                await DisposeConnectionAsync();
                 BuildConnection();
 
                 await StartConnectionAsync(stoppingToken);
@@ -70,14 +73,14 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
             {
                 //_logger.LogWarning(e, "SignalR loop failure.");
                 _logger.LogWarning("SignalR loop failure. {message}", e.Message);
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                await Task.Delay(RetryDelay, stoppingToken);
             }
         }
     }
 
     private void BuildConnection()
     {
-        _connection = new HubConnectionBuilder()
+        var connection = new HubConnectionBuilder()
             .WithUrl(_serverAddress, options =>
             {
                 options.Headers.Add(Constants.Header.Instance, _instanceService.AgentInstanceKey.ToString());
@@ -109,35 +112,36 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
             })
             .WithAutomaticReconnect(_options.ReconnectDelays)
             .Build();
+        _connection = connection;
 
         if (Debugger.IsAttached)
         {
-            _connection.ServerTimeout = TimeSpan.FromMinutes(10);
-            _connection.KeepAliveInterval = TimeSpan.FromSeconds(30);
+            connection.ServerTimeout = TimeSpan.FromMinutes(10);
+            connection.KeepAliveInterval = TimeSpan.FromSeconds(30);
         }
 
-        _connection.Reconnecting += error =>
+        connection.Reconnecting += error =>
         {
             RaiseStateChanged(HubConnectionState.Connected, HubConnectionState.Reconnecting);
             _logger.LogWarning(error, "SignalR reconnecting");
             return Task.CompletedTask;
         };
 
-        _connection.Reconnected += _ =>
+        connection.Reconnected += _ =>
         {
             RaiseStateChanged(HubConnectionState.Reconnecting, HubConnectionState.Connected);
             _logger.LogInformation("SignalR reconnected");
             return Task.CompletedTask;
         };
 
-        _connection.Closed += error =>
+        connection.Closed += error =>
         {
-            RaiseStateChanged(_connection.State, HubConnectionState.Disconnected);
+            RaiseStateChanged(connection.State, HubConnectionState.Disconnected);
             _logger.LogWarning(error, "SignalR connection closed");
             return Task.CompletedTask;
         };
 
-        _connection.On<RequestWrapper>(Constants.PostMessage, payload =>
+        connection.On<RequestWrapper>(Constants.PostMessage, payload =>
         {
             if (IsSubscriptionStateChanged(payload))
             {
@@ -159,24 +163,24 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
             return Task.CompletedTask;
         });
 
-        _connection.On<RequestWrapper>(Constants.SendMessage, payload =>
+        connection.On<RequestWrapper>(Constants.SendMessage, payload =>
         {
             Task.Run(async () =>
             {
                 try
                 {
                     var response = await _messageExecutor.ExecuteAsync(null, payload);
-                    await _connection.SendAsync(Constants.ResponseMessage, payload.Respond(response));
+                    await connection.SendAsync(Constants.ResponseMessage, payload.Respond(response));
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to handle SendMessage for type '{Type}'.", payload.Type);
-                    await _connection.SendAsync(Constants.ResponseMessage, ErrorResponse.Create(payload, ex));
+                    await connection.SendAsync(Constants.ResponseMessage, ErrorResponse.Create(payload, ex));
                 }
             });
         });
 
-        _connection.On<RequestWrapper>(Constants.ResponseMessage, payload =>
+        connection.On<RequestWrapper>(Constants.ResponseMessage, payload =>
         {
             _responseMediator.Deliver(payload);
         });
@@ -196,6 +200,21 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
         catch (Exception e)
         {
             _logger.LogError(e, "Failed to apply subscription state change.");
+        }
+    }
+
+    private async Task DisposeConnectionAsync()
+    {
+        var previous = _connection;
+        if (previous is null) return;
+
+        try
+        {
+            await previous.DisposeAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Failed to dispose the previous SignalR connection.");
         }
     }
 
