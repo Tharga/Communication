@@ -186,9 +186,17 @@ internal class ServerCommunication : IServerCommunication
     /// </summary>
     internal async Task SendActiveSubscriptionsAsync(string connectionId)
     {
-        foreach (var (topic, key) in _subscriptionManager.GetActiveTopics())
+        await _subscriptionLock.WaitAsync();
+        try
         {
-            await PostAsync(connectionId, new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = true });
+            foreach (var (topic, key) in _subscriptionManager.GetActiveTopics())
+            {
+                await PostAsync(connectionId, new SubscriptionStateChanged { Topic = topic, Key = key, HasSubscribers = true });
+            }
+        }
+        finally
+        {
+            _subscriptionLock.Release();
         }
     }
 
