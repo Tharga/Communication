@@ -188,7 +188,8 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
 
     private static bool IsSubscriptionStateChanged(RequestWrapper payload)
     {
-        return payload.Type?.Split(',')[0].Trim() == typeof(SubscriptionStateChanged).FullName;
+        var type = payload.Type?.Split(',')[0].Trim();
+        return type == typeof(SubscriptionStateChanged).FullName || type == typeof(SubscriptionSnapshot).FullName;
     }
 
     private async Task ApplySubscriptionStateChangedAsync(RequestWrapper payload)

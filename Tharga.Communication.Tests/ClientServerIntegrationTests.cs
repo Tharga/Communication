@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.SignalR.Client;
+using System.Reflection;
 using Tharga.Communication.Client;
 using Tharga.Communication.Client.Communication;
 using Tharga.Communication.Contract;
@@ -54,6 +56,7 @@ public class ClientServerIntegrationTests : IAsyncLifetime
         {
             options.RegisterClientStateService<IntegrationTests.TestClientStateService>();
             options.RegisterClientRepository<MemoryClientRepository<ClientConnectionInfo>, ClientConnectionInfo>();
+            options.RegisterApiKeyValidator<RejectingWhenOfflineValidator>();
             options.AdditionalAssemblies = [GetType().Assembly];
         });
 
@@ -169,6 +172,59 @@ public class ClientServerIntegrationTests : IAsyncLifetime
         var act = () => clientCommunication.SendMessage<FailingRequest, FailingReply>(new FailingRequest(), WaitLimit);
 
         await act.Should().ThrowAsync<RemoteRequestException>().WithMessage("*Handler failure.*");
+    }
+
+    [Fact]
+    public async Task Client_ReconnectsAfterTheLastSubscriberLeftWhileItWasAway_NoLongerHasSubscribers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = await StartClientAsync();
+        var clientCommunication = client.Services.GetRequiredService<IClientCommunication>();
+        var serverCommunication = _server.Services.GetRequiredService<IServerCommunication>();
+        var subscription = await serverCommunication.SubscribeAsync<OrderedTopic>();
+        await WaitUntilAsync(() => clientCommunication.HasSubscribers<OrderedTopic>(), ct);
+
+        var validator = (RejectingWhenOfflineValidator)_server.Services.GetRequiredService<IApiKeyValidator>();
+        validator.Offline = true;
+        var connection = (HubConnection)typeof(SignalRHostedService).GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(client.Services.GetRequiredService<ISignalRHostedService>());
+        await connection.StopAsync(ct);
+        await WaitUntilAsync(() => validator.Rejections > 0, ct);
+        await subscription.DisposeAsync();
+        var acceptedWhileAway = validator.Accepted;
+        validator.Offline = false;
+        await WaitUntilAsync(() => validator.Accepted > acceptedWhileAway, ct);
+
+        await WaitUntilAsync(() => !clientCommunication.HasSubscribers<OrderedTopic>(), ct);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken cancellationToken)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(TimeSpan.FromSeconds(15));
+        while (!condition()) await Task.Delay(20, limit.Token);
+    }
+
+    public sealed class RejectingWhenOfflineValidator : IApiKeyValidator
+    {
+        private int _rejections;
+        private int _accepted;
+
+        public volatile bool Offline;
+        public int Rejections => _rejections;
+        public int Accepted => _accepted;
+
+        public Task<ApiKeyValidationResult> ValidateAsync(string apiKey, CancellationToken cancellationToken = default)
+        {
+            if (Offline)
+            {
+                Interlocked.Increment(ref _rejections);
+                return Task.FromResult(new ApiKeyValidationResult { IsValid = false });
+            }
+
+            Interlocked.Increment(ref _accepted);
+            return Task.FromResult(new ApiKeyValidationResult { IsValid = true });
+        }
     }
 
     [Fact]

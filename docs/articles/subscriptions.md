@@ -58,7 +58,7 @@ clientCommunication.SubscriptionChanged += (sender, e) =>
 - **Type-based** (`SubscribeAsync<T>()` without key) is a wildcard — `HasSubscribers<T>("anyKey")` returns `true`.
 - **Data-based** (`SubscribeAsync<T>("1")` with key) is specific — only `HasSubscribers<T>("1")` returns `true`.
 
-Multiple subscribers to the same topic/key are reference-counted; the server only signals clients on the 0↔1 transition. A client that connects (or reconnects) is sent every subscription that is active at that moment, so it does not miss subscriptions made before it connected.
+Multiple subscribers to the same topic/key are reference-counted; the server only signals clients on the 0↔1 transition. A client that connects (or reconnects) is sent every subscription that is active at that moment, so it does not miss subscriptions made before it connected. The server follows those messages with a `SubscriptionSnapshot` that lists every active subscription. A client replaces what it knows with the snapshot, so a subscription that ended while the client was disconnected is dropped on reconnect. Clients from before the snapshot was added ignore it and a newer client talking to an older server (no snapshot) keeps what it has, as before.
 
 ## When to use which
 
