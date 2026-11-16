@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Tharga.Communication.Client;
 using Tharga.Communication.Client.Communication;
 using Tharga.Communication.Contract;
@@ -168,6 +169,70 @@ public class ClientServerIntegrationTests : IAsyncLifetime
         var act = () => clientCommunication.SendMessage<FailingRequest, FailingReply>(new FailingRequest(), WaitLimit);
 
         await act.Should().ThrowAsync<RemoteRequestException>().WithMessage("*Handler failure.*");
+    }
+
+    [Fact]
+    public async Task Client_PostMessageHandlerFails_LogsTheFailure()
+    {
+        var logs = new CapturingLoggerProvider();
+        await StartClientAsync(services => services.AddSingleton<ILoggerProvider>(logs));
+        var serverCommunication = _server.Services.GetRequiredService<IServerCommunication>();
+
+        await serverCommunication.PostToAllAsync(new UnhandledPost());
+
+        await logs.WaitForErrorAsync("Failed to handle PostMessage", WaitLimit, TestContext.Current.CancellationToken);
+    }
+
+    public record UnhandledPost;
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        private readonly TaskCompletionSource<string> _match = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private string _expected;
+        private readonly List<string> _errors = [];
+
+        public ILogger CreateLogger(string categoryName) => new Capture(this);
+
+        public void Dispose() { }
+
+        public async Task WaitForErrorAsync(string text, TimeSpan limit, CancellationToken cancellationToken)
+        {
+            lock (_errors)
+            {
+                _expected = text;
+                if (_errors.Any(x => x.Contains(text))) return;
+            }
+
+            await _match.Task.WaitAsync(limit, cancellationToken);
+        }
+
+        private void Add(string message)
+        {
+            lock (_errors)
+            {
+                _errors.Add(message);
+                if (_expected != null && message.Contains(_expected)) _match.TrySetResult(message);
+            }
+        }
+
+        private sealed class Capture : ILogger
+        {
+            private readonly CapturingLoggerProvider _owner;
+
+            public Capture(CapturingLoggerProvider owner)
+            {
+                _owner = owner;
+            }
+
+            public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+            {
+                if (logLevel >= LogLevel.Error) _owner.Add(formatter(state, exception));
+            }
+        }
     }
 
     private async Task<string> GetClientConnectionIdAsync()

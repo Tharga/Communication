@@ -145,9 +145,16 @@ internal sealed class SignalRHostedService : BackgroundService, ISignalRHostedSe
                 return ApplySubscriptionStateChangedAsync(payload);
             }
 
-            Task.Run(() =>
+            Task.Run(async () =>
             {
-                _messageExecutor.ExecuteAsync(null, payload);
+                try
+                {
+                    await _messageExecutor.ExecuteAsync(null, payload);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to handle PostMessage for type '{Type}'.", payload.Type);
+                }
             });
             return Task.CompletedTask;
         });
